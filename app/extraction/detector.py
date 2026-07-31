@@ -1,31 +1,33 @@
 from pathlib import Path
 
-from app.models.document import Document
-from app.extraction.pdf_reader import extract_text_from_pdf
-from app.extraction.docx_reader import extract_text_from_docx
 
+PDF_EXTENSIONS = {".pdf"}
 
-SUPPORTED_EXTENSIONS = {
-    ".pdf": extract_text_from_pdf,
-    ".docx": extract_text_from_docx,
+DOCX_EXTENSIONS = {".docx",".doc"}
+
+IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".bmp",
+    ".tiff",
+    ".webp",
 }
 
 
-def load_document(file_path: str) -> Document:
-    """
-    Charge un document en appelant automatiquement
-    le lecteur adapté au format.
-    """
+def detect_document_type(file_path: str) -> str:
 
-    path = Path(file_path)
+    extension = Path(file_path).suffix.lower()
 
-    extension = path.suffix.lower()
+    if extension in PDF_EXTENSIONS:
+        return "pdf"
 
-    reader = SUPPORTED_EXTENSIONS.get(extension)
+    if extension in DOCX_EXTENSIONS:
+        return "docx"
 
-    if reader is None:
-        raise ValueError(
-            f"Format non supporté : {extension}"
-        )
+    if extension in IMAGE_EXTENSIONS:
+        return "image"
 
-    return reader(file_path)
+    raise ValueError(
+        f"Extension non supportée : {extension}"
+    )
