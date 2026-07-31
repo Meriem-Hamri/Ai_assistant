@@ -18,7 +18,26 @@ L'architecture finale s'articule autour de 7 étapes clés :
 
 ### Étape 3 : Nettoyage du texte 
 * **Statut** : **Implémenté** ✅
-* **Description** : Suppression du bruit (caractères spéciaux, sauts de ligne inutiles, espaces superflus) pour améliorer l'indexation. Le nettoyage modifie directement le texte des pages du `Document`.
+* **Description** : Suppression du bruit (caractères spéciaux, sauts de ligne inutiles, espaces superflus, caractères de contrôle) pour obtenir un texte propre avant l'indexation. Le nettoyage s'applique directement aux `DocumentPage` du `Document` sans créer un nouveau document.
+
+#### Détail de l'étape 3
+La phase de cleaning intervient juste après l'extraction. À ce stade, le texte peut être bruité à cause de plusieurs facteurs :
+- retours à la ligne mal gérés,
+- espaces ou tabulations répétitifs,
+- caractères invisibles ou non imprimables,
+- lignes vides inutiles,
+- sauts de paragraphes incohérents.
+
+L'objectif est de transformer ce texte brut en un texte structuré, lisible et prêt à être utilisé par les étapes suivantes (chunking, embeddings, recherche sémantique).
+
+Le nettoyage est réalisé par `app/cleaning/cleaner.py` à travers plusieurs fonctions :
+- `normalize_line_breaks()` : normalise les retours à la ligne,
+- `remove_control_characters()` : supprime les caractères de contrôle,
+- `normalize_spaces()` : réduit les espaces répétitifs,
+- `remove_empty_lines()` : enlève les lignes vides parasites,
+- `strip_text()` : enlève les espaces en début et fin de texte.
+
+La fonction `clean_document()` applique ces transformations directement sur le contenu de chaque page du document et ajoute des métadonnées indiquant que le nettoyage a été effectué.
 
 ### Étape 4 : Découpage sémantique (Chunking) 
 * **Statut** : **Planifié** ⏳
@@ -68,6 +87,30 @@ graph TD
     N --> O[qwen_client.py via Ollama]
     O --> P[Réponse finale + Sources documentaires]
 ```
+
+---
+
+## 🧼 Étape 3 : Nettoyage du texte (Cleaning)
+
+Dans un système RAG (Retrieval-Augmented Generation) local, le nettoyage du texte après l'extraction brute est une étape critique. Les documents extraits (PDF, Word, Scans OCR) contiennent souvent beaucoup de bruit textuel qui peut dégrader la qualité des embeddings et perturber le modèle de langage.
+
+### 1. Pourquoi le nettoyage est-il crucial ?
+* **Préservation du sens sémantique** : Les mots coupés en fin de ligne (ex. `infor-` et `mation`), les en-têtes et pieds de page répétés à chaque page ajoutent un bruit inutile que le modèle vectoriel peut mal interpréter.
+* **Optimisation de la fenêtre de contexte** : Envoyer des espaces superflus, des sauts de page inutiles ou du texte répétitif au LLM consomme des jetons (tokens) inutilement et ralentit la génération locale.
+* **Amélioration de la similarité sémantique** : Un texte propre garantit que la recherche de similarité s'effectue sur le contenu informatif réel et non sur des artefacts de mise en page.
+
+### 2. Opérations clés du nettoyage
+Le module `app/cleaning/cleaner.py` aura pour rôle d'appliquer les transformations suivantes :
+* **Normalisation des espaces et sauts de ligne** : Remplacement des espaces multiples, tabulations et retours à la ligne consécutifs par des espaces uniques ou des sauts de paragraphe propres.
+* **Reconstruction des mots coupés (Hyphenation)** : Détection et fusion des mots coupés en fin de ligne par un trait d'union (ex. `déve-\nloppement` devient `développement`).
+* **Suppression des en-têtes et pieds de page (Headers & Footers)** : Identification et suppression des textes récurrents en haut ou en bas de chaque page (ex. titre du document, numérotation comme `Page 3 sur 10`).
+* **Nettoyage des artefacts d'OCR** : Suppression des caractères parasites fréquents dans les documents scannés (ex. caractères isolés comme `~`, `|`, `_`, ou suites incohérentes de signes de ponctuation).
+* **Normalisation de l'encodage** : Conversion des caractères spéciaux et correction des erreurs d'encodage (ex. mauvaise conversion UTF-8 / Windows-1252 créant des caractères corrompus comme `Ã©` au lieu de `é`).
+
+### 3. Structure d'implémentation proposée
+Le fichier `app/cleaning/cleaner.py` contiendra :
+* Des fonctions utilitaires dédiées à chaque type de nettoyage (ex: `remove_extra_whitespace(text: str)`, `fix_hyphenation(text: str)`, `remove_headers_footers(text: str)`).
+* Une fonction principale `clean_document(document: Document) -> Document` qui applique ces règles séquentiellement sur le texte de chaque `DocumentPage` présente dans l'objet `Document` avant l'étape de découpage (chunking).
 
 ---
 

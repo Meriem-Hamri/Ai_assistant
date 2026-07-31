@@ -86,9 +86,19 @@ Ce projet vise à créer une solution de recherche documentaire locale capable d
 
 ### 3.5 Nettoyage
 - `app/cleaning/cleaner.py`
-  - Fichier vide aujourd'hui.
-  - Emplacement prévu pour les règles de nettoyage de texte : suppression de retours à la ligne inutiles, normalisation, élimination de caractères parasites, etc.
-  - Il a vocation à être appelé après l'extraction et avant la vectorisation.
+  - Module chargé de transformer le texte brut issu de l'extraction en un texte propre, lisible et homogène.
+  - Son rôle est de corriger les imperfections structurelles du texte sans changer la logique du document : les modifications portent sur les `DocumentPage` du document existant, et non sur la création d'un nouveau `Document`.
+  - Le nettoyage intervient après l'extraction et avant les étapes suivantes du pipeline (chunking, embeddings, recherche sémantique).
+  - Les transformations effectuées sont les suivantes :
+    - normalisation des retours à la ligne (`\n`, `\r\n`, `\f`),
+    - suppression des caractères de contrôle invisibles,
+    - réduction des espaces et tabulations multiples,
+    - suppression des lignes vides inutiles,
+    - retrait des espaces en début et fin de texte.
+  - La fonction `clean_text()` applique l'ensemble de ces règles sur une chaîne de caractères.
+  - La fonction `clean_document()` applique ce nettoyage à toutes les pages du document et ajoute des métadonnées pour signaler que le document a été nettoyé.
+  - Ce module est volontairement simple à ce stade : il se concentre sur la qualité structurelle du texte. Les règles plus avancées (suppression de signatures, en-têtes répétitifs, formats spécifiques, etc.) pourront être ajoutées plus tard si nécessaire.
+  - Les tests associés sont présents dans `tests/test_etape3.py` et couvrent les cas PDF, DOCX et image (OCR).
 
 ### 3.6 Tests existants
 - `tests/test_paddle.py`
