@@ -1,0 +1,1 @@
+# Classe abstraite BaseSplitter
