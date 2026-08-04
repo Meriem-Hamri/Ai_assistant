@@ -9,6 +9,7 @@ class DocumentPage:
     """
     page_number:int
     text:str
+    metadata: dict[str, Any]
 
 @dataclass
 class Document:
@@ -22,7 +23,17 @@ class Document:
 
 @dataclass
 class Chunk:
-    id: str
-    text: str
-    page_number: int
-    document_name: str
+    """
+    Représente un fragment de document destiné à être indexé
+    dans la base vectorielle.
+    """
+
+    id: str = field(default_factory=lambda: str(uuid4()))
+    text: str = ""
+    document_id: str = ""
+    document_name: str = ""
+    page_number: int = 0
+    chunk_index: int = 0
+    start_char: int = 0
+    end_char: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
