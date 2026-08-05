@@ -9,7 +9,7 @@ class DocumentPage:
     """
     page_number:int
     text:str
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class Document:
@@ -32,8 +32,24 @@ class Chunk:
     text: str = ""
     document_id: str = ""
     document_name: str = ""
-    page_number: int = 0
+    page_number: int | None = None
     chunk_index: int = 0
     start_char: int = 0
     end_char: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@property
+def source(self) -> str:
+    return f"{self.document_name} - page {self.page_number}"
+
+# @dataclass
+# class TextSpan:
+#     """
+#     Représente un fragment du texte original avec
+#     ses positions exactes dans la page.
+#     """
+
+#     text: str
+#     start_char: int
+#     end_char: int
