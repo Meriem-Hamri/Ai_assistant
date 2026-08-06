@@ -1,17 +1,176 @@
-from pathlib import Path
+def test_initialization(store):
+    assert store.count() == 0
 
-from app.vectorstore.chroma_store import ChromaStore
-from app.vectorstore.config import VectorStoreConfig
+from app.models.document import Chunk
 
 
-def test_chroma_store_initialization():
-    config = VectorStoreConfig(
-        persist_directory=Path("tests/chroma_db"),
-        collection_name="test_collection",
+def test_add_chunks(store):
+
+    chunk = Chunk(
+        text="Paris est la capitale de la France.",
+        document_id="doc1",
+        document_name="document.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=34,
     )
 
-    store = ChromaStore(config)
+    embedding = [0.1] * 1024
 
-    assert store._client is not None
-    assert store._collection is not None
-    assert config.persist_directory.exists()
+    store.add_chunks(
+        [chunk],
+        [embedding],
+    )
+
+    assert store.count() == 1
+
+def test_search(store):
+
+    chunk = Chunk(
+        text="Paris est la capitale de la France.",
+        document_id="doc1",
+        document_name="document.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=34,
+    )
+
+    embedding = [0.1] * 1024
+
+    store.add_chunks(
+        [chunk],
+        [embedding],
+    )
+
+    results = store.search(
+        embedding,
+        top_k=1,
+    )
+
+    assert len(results) == 1
+
+    assert results[0].text == chunk.text
+
+    assert results[0].document_id == chunk.document_id
+
+def test_delete_document(store):
+
+    chunk = Chunk(
+        text="Paris est la capitale de la France.",
+        document_id="doc1",
+        document_name="document.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=34,
+    )
+
+    embedding = [0.1] * 1024
+
+    store.add_chunks(
+        [chunk],
+        [embedding],
+    )
+
+    assert store.count() == 1
+
+    store.delete_document("doc1")
+
+    assert store.count() == 0
+
+def test_clear(store):
+
+    chunk = Chunk(
+    text="Paris est la capitale.",
+    document_id="doc1",
+    document_name="document.pdf",
+    page_number=1,
+    chunk_index=0,
+    start_char=0,
+    end_char=24,
+)
+
+    embedding = [0.1] * 1024
+
+    store.add_chunks(
+        [chunk],
+        [embedding],
+    )
+
+    assert store.count() == 1
+
+    store.clear()
+
+    assert store.count() == 0
+
+def test_search_empty_collection(store):
+
+    results = store.search(
+        [0.1] * 1024
+    )
+
+    assert results == []
+
+
+def test_add_empty_chunks(store):
+
+    store.add_chunks([], [])
+
+    assert store.count() == 0
+
+def test_add_empty_chunks(store):
+    store.add_chunks(
+        chunks=[],
+        embeddings=[],
+    )
+
+    assert store.count() == 0
+
+def test_delete_nonexistent_document(store):
+    store.delete_document("document_inexistant")
+
+    assert store.count() == 0
+
+def test_delete_only_target_document(store):
+
+    chunk1 = Chunk(
+        text="Document A",
+        document_id="docA",
+        document_name="a.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=10,
+    )
+
+    chunk2 = Chunk(
+        text="Document B",
+        document_id="docB",
+        document_name="b.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=10,
+    )
+
+    embedding = [0.1] * 1024
+
+    store.add_chunks(
+        [chunk1, chunk2],
+        [embedding, embedding],
+    )
+
+    assert store.count() == 2
+
+    store.delete_document("docA")
+
+    assert store.count() == 1
+
+    results = store.search(
+        embedding=embedding,
+        top_k=5,
+    )
+
+    assert all(result.document_id == "docB" for result in results)    

@@ -82,12 +82,11 @@ class ChromaStore(BaseVectorStore):
 
         def close(self) -> None:
             """
-            Libère les ressources du Vector Store.
-
-            ChromaDB ne nécessite actuellement
-            aucune fermeture explicite.
+            Libère les ressources utilisées par le Vector Store.
             """
-            return None
+
+            self._collection = None
+            self._client = None
 
         "==================================================== INDEXATION ============"
         def add_chunks(
