@@ -1,5 +1,5 @@
 from app.models.document import Chunk
-
+from app.vectorstore.search_result import SearchResult
 
 def prepare_chroma_payload(
     chunks: list[Chunk],
@@ -60,3 +60,64 @@ def prepare_chroma_payload(
         )
 
     return ids, documents, vectors, metadatas
+
+def build_search_results(
+    ids: list[str],
+    documents: list[str],
+    metadatas: list[dict],
+    distances: list[float],
+) -> list[SearchResult]:
+    """
+    Construit les résultats de recherche à partir
+    des données retournées par ChromaDB.
+
+    Args:
+        ids:
+            Identifiants des chunks.
+
+        documents:
+            Textes des chunks.
+
+        metadatas:
+            Métadonnées des chunks.
+
+        distances:
+            Distances retournées par ChromaDB.
+
+    Returns:
+        Liste des SearchResult.
+    """
+
+    if not (
+        len(ids)
+        == len(documents)
+        == len(metadatas)
+        == len(distances)
+    ):
+        raise ValueError(
+            "Les données retournées par ChromaDB sont incohérentes."
+        )
+
+    results: list[SearchResult] = []
+
+    for chunk_id, text, metadata, distance in zip(
+        ids,
+        documents,
+        metadatas,
+        distances,
+    ):
+        results.append(
+            SearchResult(
+                chunk_id=chunk_id,
+                text=text,
+                score=distance,
+                document_id=metadata["document_id"],
+                document_name=metadata["document_name"],
+                page_number=metadata["page_number"],
+                chunk_index=metadata["chunk_index"],
+                start_char=metadata["start_char"],
+                end_char=metadata["end_char"],
+            )
+        )
+
+    return results
