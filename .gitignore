@@ -36,3 +36,10 @@ htmlcov/
 # Temporary files
 *.tmp
 *.log
+
+# ChromaDB test database
+tests/chroma_db/
+
+# Or more generally
+*.sqlite3
+*.bin
