@@ -6,6 +6,12 @@ from app.vectorstore.config import VectorStoreConfig
 # indexation
 from app.vectorstore.utils import prepare_chroma_payload
 from app.models.document import Chunk
+# Recherche vectorielle
+from app.vectorstore.search_result import SearchResult
+from app.vectorstore.utils import (
+    prepare_chroma_payload,
+    build_search_results,
+)
 
 class ChromaStore(BaseVectorStore):
         """
@@ -133,6 +139,42 @@ class ChromaStore(BaseVectorStore):
                 )
 
         "=================================================== RECHERCHE VECTORIELLE ==========="
-        
+        def search(
+            self,
+            embedding: list[float],
+            top_k: int = 5,
+        ) -> list[SearchResult]:
+            """
+            Recherche les chunks les plus pertinents.
+
+            Args:
+                embedding:
+                    Embedding de la requête.
+
+                top_k:
+                    Nombre maximum de résultats.
+
+            Returns:
+                Liste des résultats de recherche.
+            """
+
+            results = self._collection.query(
+                query_embeddings=[embedding],
+                n_results=top_k,
+            )
+            if not results["ids"]:
+                return []
+
+            ids = results["ids"][0]
+            documents = results["documents"][0]
+            metadatas = results["metadatas"][0]
+            distances = results["distances"][0]
+
+            return build_search_results(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas,
+                distances=distances,
+            )
 
 
