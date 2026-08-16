@@ -1,5 +1,8 @@
 # 🤖 Assistant AI - Recherche Documentaire & RAG 100% Local
 
+## Quick Start
+Pour une procédure détaillée pas à pas (installation, exécution des tests, dépannage), voir : `docs/STEP_BY_STEP.md`.
+
 Ce projet est une solution de recherche documentaire intelligente exploitant des modèles d'Intelligence Artificielle (IA) locaux. L'objectif principal est de concevoir un système capable d'importer des documents multi-formats (PDF, Word, Images), d'en extraire le contenu textuel (avec OCR si nécessaire), de l'indexer de manière sémantique, et de répondre aux questions des utilisateurs de façon contextualisée et 100% locale (sans connexion internet ni cloud).
 
 ---
