@@ -1,9 +1,6 @@
 # Objet retourné par une recherche
 from dataclasses import dataclass
 
-from app.models.document import Chunk
-
-
 @dataclass(slots=True)
 class SearchResult:
     """
@@ -14,7 +11,8 @@ class SearchResult:
 
     text: str
 
-    score: float
+    # score: float
+    distance: float
 
     document_id: str
 

@@ -17,7 +17,7 @@ def create_result(
     return SearchResult(
         chunk_id="chunk-1",
         text=text,
-        score=0.95,
+        distance=0.05,
         document_id="doc-1",
         document_name=document_name,
         page_number=page_number,
