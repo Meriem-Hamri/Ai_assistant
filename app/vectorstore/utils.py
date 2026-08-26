@@ -110,7 +110,7 @@ def build_search_results(
             SearchResult(
                 chunk_id=chunk_id,
                 text=text,
-                score=distance,
+                distance=distance,
                 document_id=metadata["document_id"],
                 document_name=metadata["document_name"],
                 page_number=metadata["page_number"],

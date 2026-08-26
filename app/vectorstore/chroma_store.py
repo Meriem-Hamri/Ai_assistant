@@ -4,7 +4,6 @@ from chromadb.api.models.Collection import Collection
 from app.vectorstore.base import BaseVectorStore
 from app.vectorstore.config import VectorStoreConfig
 # indexation
-from app.vectorstore.utils import prepare_chroma_payload
 from app.models.document import Chunk
 # Recherche vectorielle
 from app.vectorstore.search_result import SearchResult
