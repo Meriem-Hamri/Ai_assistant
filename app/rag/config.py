@@ -12,6 +12,7 @@ class RAGConfig:
     """
 
     top_k: int = 5
+    max_distance: float | None = 0.5,
 
     def __post_init__(self) -> None:
         """Valide la configuration après son initialisation."""
