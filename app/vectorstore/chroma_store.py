@@ -137,10 +137,13 @@ class ChromaStore(BaseVectorStore):
                 )
 
         "=================================================== RECHERCHE VECTORIELLE ==========="
+
+
         def search(
             self,
             embedding: list[float],
             top_k: int = 5,
+            max_distance: float | None = None,
         ) -> list[SearchResult]:
             """
             Recherche les chunks les plus pertinents.
@@ -150,29 +153,80 @@ class ChromaStore(BaseVectorStore):
                     Embedding de la requête.
 
                 top_k:
-                    Nombre maximum de résultats.
+                    Nombre maximum de résultats à retourner.
+
+                max_distance:
+                    Distance maximale autorisée pour un résultat.
+                    Si None, aucun filtrage par distance n'est appliqué.
 
             Returns:
-                Liste des résultats de recherche.
+                Liste des résultats de recherche triés par distance
+                croissante, le résultat le plus proche étant en premier.
+
+            Raises:
+                ValueError:
+                    Si l'embedding est vide, si top_k n'est pas positif
+                    ou si max_distance est négatif.
+
+                TypeError:
+                    Si top_k ou max_distance possède un type invalide.
             """
+
+            if embedding is None or len(embedding) == 0:
+                raise ValueError(
+                    "L'embedding de recherche ne peut pas être vide."
+                )
+
+            if not isinstance(top_k, int) or isinstance(top_k, bool):
+                raise TypeError(
+                    "top_k doit être un entier."
+                )
+
+            if top_k <= 0:
+                raise ValueError(
+                    "top_k doit être strictement positif."
+                )
+
+            if max_distance is not None:
+                if (
+                    isinstance(max_distance, bool)
+                    or not isinstance(max_distance, (int, float))
+                ):
+                    raise TypeError(
+                        "max_distance doit être un nombre ou None."
+                    )
+
+                if max_distance < 0:
+                    raise ValueError(
+                        "max_distance ne peut pas être négative."
+                    )
 
             results = self._collection.query(
                 query_embeddings=[embedding],
                 n_results=top_k,
             )
-            if not results["ids"]:
-                return []
 
             ids = results["ids"][0]
+
+            if not ids:
+                return []
+
             documents = results["documents"][0]
             metadatas = results["metadatas"][0]
             distances = results["distances"][0]
 
-            return build_search_results(
+            search_results = build_search_results(
                 ids=ids,
                 documents=documents,
                 metadatas=metadatas,
                 distances=distances,
             )
 
+            if max_distance is not None:
+                search_results = [
+                    result
+                    for result in search_results
+                    if result.distance <= max_distance
+                ]
 
+            return search_results

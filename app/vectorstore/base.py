@@ -28,8 +28,26 @@ class BaseVectorStore(ABC):
         self,
         embedding: list[float],
         top_k: int = 5,
+        max_distance: float | None = None,
     ) -> list[SearchResult]:
-        """Recherche les chunks les plus similaires."""
+        """
+        Recherche les chunks les plus similaires.
+
+        Args:
+            embedding:
+                Embedding de la requête.
+
+            top_k:
+                Nombre maximum de résultats à retourner.
+
+            max_distance:
+                Distance maximale autorisée pour qu'un résultat
+                soit considéré comme pertinent.
+                Si None, aucun filtrage par distance n'est appliqué.
+
+        Returns:
+            Liste des résultats de recherche.
+        """
         ...
 
     @abstractmethod
