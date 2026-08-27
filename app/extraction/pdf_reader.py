@@ -8,6 +8,7 @@ def extract_text_from_pdf(filePath:str)->Document:
         FileNotFoundError:Si le fichier n'existe pas
         ValueError:Si le fichier n'est pas un pdf 
     """
+    
     path=Path(filePath)
 
     if not path.exists():
