@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+)
 from app.api.dependencies import (
     get_document_repository,
     get_embedding_service,
@@ -64,3 +70,25 @@ def get_documents(
     ),
 ):
     return service.get_documents()
+
+@router.get(
+    "/{document_id}",
+    response_model=DocumentResponse,
+)
+def get_document(
+    document_id: str,
+    service: DocumentService = Depends(
+        get_document_service
+    ),
+):
+    document = service.get_document(
+        document_id
+    )
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable.",
+        )
+
+    return document

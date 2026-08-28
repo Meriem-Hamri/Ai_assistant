@@ -111,3 +111,15 @@ class DocumentService:
         """
 
         return self._repository.get_all()
+
+    def get_document(
+        self,
+        document_id: str,
+    ) -> dict | None:
+        """
+        Retourne les métadonnées d'un document.
+        """
+
+        return self._repository.get_by_id(
+            document_id
+        )

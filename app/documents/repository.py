@@ -53,6 +53,24 @@ class DocumentRepository:
         except json.JSONDecodeError:
             return []
 
+    def get_by_id(
+        self,
+        document_id: str,
+    ) -> dict | None:
+        """
+        Retourne un document à partir de son identifiant.
+
+        Retourne None si le document n'existe pas.
+        """
+
+        documents = self.get_all()
+
+        for document in documents:
+            if document.get("id") == document_id:
+                return document
+
+        return None
+
     def _write(
         self,
         documents: list[dict],
