@@ -53,6 +53,24 @@ class DocumentRepository:
         except json.JSONDecodeError:
             return []
 
+    def get_by_id(
+        self,
+        document_id: str,
+    ) -> dict | None:
+        """
+        Retourne un document à partir de son identifiant.
+
+        Retourne None si le document n'existe pas.
+        """
+
+        documents = self.get_all()
+
+        for document in documents:
+            if document.get("id") == document_id:
+                return document
+
+        return None
+
     def _write(
         self,
         documents: list[dict],
@@ -72,3 +90,29 @@ class DocumentRepository:
                 indent=4,
                 default=str,
             )
+
+    def delete(
+        self,
+        document_id: str,
+    ) -> bool:
+        """
+        Supprime les métadonnées d'un document.
+
+        Retourne True si le document existait,
+        False sinon.
+        """
+
+        documents = self.get_all()
+
+        filtered_documents = [
+            document
+            for document in documents
+            if document.get("id") != document_id
+        ]
+
+        if len(filtered_documents) == len(documents):
+            return False
+
+        self._write(filtered_documents)
+
+        return True

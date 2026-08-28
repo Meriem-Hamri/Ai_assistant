@@ -23,9 +23,11 @@ class DocumentService:
         self,
         indexer: DocumentIndexer,
         repository: DocumentRepository,
+        vector_store,
     ) -> None:
         self._indexer = indexer
         self._repository = repository
+        self._vector_store = vector_store
 
     async def upload_document(
         self,
@@ -111,3 +113,47 @@ class DocumentService:
         """
 
         return self._repository.get_all()
+
+    def get_document(
+        self,
+        document_id: str,
+    ) -> dict | None:
+        """
+        Retourne les métadonnées d'un document.
+        """
+
+        return self._repository.get_by_id(
+            document_id
+        )
+
+    def delete_document(
+        self,
+        document_id: str,
+    ) -> bool:
+        """
+        Supprime un document de tous les stockages.
+        """
+
+        metadata = self._repository.get_by_id(
+            document_id
+        )
+
+        if metadata is None:
+            return False
+
+        self._vector_store.delete_document(
+            document_id
+        )
+
+        file_path = Path(
+            metadata["path"]
+        )
+
+        if file_path.exists():
+            file_path.unlink()
+
+        self._repository.delete(
+            document_id
+        )
+
+        return True
