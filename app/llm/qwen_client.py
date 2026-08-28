@@ -45,10 +45,28 @@ class QwenClient(BaseLLM):
             model=self._config.model,
             messages=[
                 {
+                    "role": "system",
+
+                    "content": (
+                        "Tu es un assistant qui répond aux questions "
+                        "à partir de documents. "
+                        "Réponds uniquement avec les informations du contexte. "
+                        "Réponds directement et en français. "
+                        "Ne montre jamais ton raisonnement. "
+                        "Ne montre jamais tes étapes de réflexion. "
+                        "Si une réponse nécessite un calcul simple, donne le résultat "
+                        "et indique brièvement qu'il s'agit d'un calcul. "
+                        "Si l'information n'est pas disponible, réponds : "
+                        "\"Information non disponible dans les documents.\""
+                    ),
+
+                },
+                {
                     "role": "user",
                     "content": prompt.strip(),
-                }
+                },
             ],
+            think=False,
             options={
                 "temperature": self._config.temperature,
                 "num_predict": self._config.max_tokens,
@@ -58,7 +76,14 @@ class QwenClient(BaseLLM):
             },
         )
 
-        return response.message.content
+        content = response.message.content
+
+        # Sécurité : certains modèles/configurations peuvent
+        # malgré tout retourner une partie de raisonnement.
+        if "</think>" in content:
+            content = content.split("</think>", 1)[1]
+
+        return content.strip()
 
 
 
