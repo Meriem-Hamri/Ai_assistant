@@ -6,6 +6,7 @@ from fastapi import UploadFile
 
 from app.cleaning.cleaner import clean_document
 from app.documents.indexer import DocumentIndexer
+from app.documents.repository import DocumentRepository
 from app.extraction.extraction_service import extract_document
 
 
@@ -21,8 +22,10 @@ class DocumentService:
     def __init__(
         self,
         indexer: DocumentIndexer,
+        repository: DocumentRepository,
     ) -> None:
         self._indexer = indexer
+        self._repository = repository
 
     async def upload_document(
         self,
@@ -89,6 +92,10 @@ class DocumentService:
                 "chunk_count": len(chunks),
             }
 
+            self._repository.save(
+                metadata
+            )
+
             return metadata
 
         except Exception:
@@ -97,3 +104,10 @@ class DocumentService:
                 file_path.unlink()
 
             raise
+
+    def get_documents(self) -> list[dict]:
+        """
+        Retourne la liste des documents enregistrés.
+        """
+
+        return self._repository.get_all()

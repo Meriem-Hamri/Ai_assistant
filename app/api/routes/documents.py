@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, File, UploadFile
-
-from app.api.schemas.document import DocumentResponse
 from app.api.dependencies import (
+    get_document_repository,
     get_embedding_service,
     get_vector_store,
 )
+from app.api.schemas.document import DocumentResponse
 from app.documents.indexer import DocumentIndexer
+from app.documents.repository import DocumentRepository
 from app.documents.service import DocumentService
 
 
@@ -22,6 +23,9 @@ def get_document_service(
     vector_store=Depends(
         get_vector_store
     ),
+    repository: DocumentRepository = Depends(
+        get_document_repository
+    ),
 ) -> DocumentService:
 
     indexer = DocumentIndexer(
@@ -30,7 +34,8 @@ def get_document_service(
     )
 
     return DocumentService(
-        indexer=indexer
+        indexer=indexer,
+        repository=repository,
     )
 
 
@@ -47,3 +52,15 @@ async def upload_document(
     return await service.upload_document(
         file
     )
+
+
+@router.get(
+    "/",
+    response_model=list[DocumentResponse],
+)
+def get_documents(
+    service: DocumentService = Depends(
+        get_document_service
+    ),
+):
+    return service.get_documents()
