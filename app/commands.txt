@@ -1,0 +1,1 @@
+FASTAPI : py -m uvicorn app.api.main:app --reload

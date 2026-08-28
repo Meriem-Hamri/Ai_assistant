@@ -318,3 +318,41 @@ def test_search_rejects_non_numeric_max_distance(store):
             max_distance="0.5",
         )
 
+def test_search_filters_by_document_id(store):
+
+    chunk1 = Chunk(
+        text="Information du document A",
+        document_id="docA",
+        document_name="a.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=25,
+    )
+
+    chunk2 = Chunk(
+        text="Information du document B",
+        document_id="docB",
+        document_name="b.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=25,
+    )
+
+    embedding = [0.1] * 1024
+
+    store.add_chunks(
+        [chunk1, chunk2],
+        [embedding, embedding],
+    )
+
+    results = store.search(
+        embedding=embedding,
+        top_k=5,
+        document_id="docA",
+    )
+
+    assert len(results) == 1
+    assert results[0].document_id == "docA"
+    assert results[0].text == chunk1.text

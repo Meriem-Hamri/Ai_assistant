@@ -29,6 +29,7 @@ class BaseVectorStore(ABC):
         embedding: list[float],
         top_k: int = 5,
         max_distance: float | None = None,
+        document_id: str | None = None,
     ) -> list[SearchResult]:
         """
         Recherche les chunks les plus similaires.

@@ -144,6 +144,7 @@ class ChromaStore(BaseVectorStore):
             embedding: list[float],
             top_k: int = 5,
             max_distance: float | None = None,
+            document_id: str | None = None,
         ) -> list[SearchResult]:
             """
             Recherche les chunks les plus pertinents.
@@ -201,9 +202,22 @@ class ChromaStore(BaseVectorStore):
                         "max_distance ne peut pas être négative."
                     )
 
+            # results = self._collection.query(
+            #     query_embeddings=[embedding],
+            #     n_results=top_k,
+            # )
+            query_kwargs = {
+                "query_embeddings": [embedding],
+                "n_results": top_k,
+            }
+
+            if document_id is not None:
+                query_kwargs["where"] = {
+                    "document_id": document_id
+                }
+
             results = self._collection.query(
-                query_embeddings=[embedding],
-                n_results=top_k,
+                **query_kwargs
             )
 
             ids = results["ids"][0]
