@@ -42,6 +42,7 @@ def get_document_service(
     return DocumentService(
         indexer=indexer,
         repository=repository,
+        vector_store=vector_store,
     )
 
 
@@ -92,3 +93,27 @@ def get_document(
         )
 
     return document
+
+@router.delete(
+    "/{document_id}",
+)
+def delete_document(
+    document_id: str,
+    service: DocumentService = Depends(
+        get_document_service
+    ),
+):
+    deleted = service.delete_document(
+        document_id
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable.",
+        )
+
+    return {
+        "message": "Document supprimé avec succès."
+    }
+

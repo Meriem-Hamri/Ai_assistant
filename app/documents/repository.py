@@ -90,3 +90,29 @@ class DocumentRepository:
                 indent=4,
                 default=str,
             )
+
+    def delete(
+        self,
+        document_id: str,
+    ) -> bool:
+        """
+        Supprime les métadonnées d'un document.
+
+        Retourne True si le document existait,
+        False sinon.
+        """
+
+        documents = self.get_all()
+
+        filtered_documents = [
+            document
+            for document in documents
+            if document.get("id") != document_id
+        ]
+
+        if len(filtered_documents) == len(documents):
+            return False
+
+        self._write(filtered_documents)
+
+        return True
