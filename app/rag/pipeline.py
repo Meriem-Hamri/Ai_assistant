@@ -184,6 +184,11 @@ class RAGPipeline:
         """
         Génère la réponse avec le LLM.
         """
+        print("\n" + "=" * 70)
+        print("PROMPT ENVOYÉ AU LLM")
+        print("=" * 70)
+        print(prompt)
+        print("=" * 70)
 
         try:
             return self._llm.generate(prompt)
