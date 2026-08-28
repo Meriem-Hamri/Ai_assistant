@@ -1,1 +1,13 @@
-[]
+[
+    {
+        "id": "96cb7373-2a4a-4af4-af1c-d4f39e887cf1",
+        "filename": "Test_rag_scan.pdf",
+        "type": "pdf",
+        "page_count": 7,
+        "size": 2428277,
+        "created_at": "2026-08-28 15:57:08.023354+00:00",
+        "status": "ready",
+        "path": "documents\\96cb7373-2a4a-4af4-af1c-d4f39e887cf1.pdf",
+        "chunk_count": 7
+    }
+]

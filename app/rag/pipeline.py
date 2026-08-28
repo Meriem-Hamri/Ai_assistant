@@ -57,7 +57,7 @@ class RAGPipeline:
         self._llm = llm
         self._config = config
 
-    def answer(self, question: str) -> RAGResponse:
+    def answer(self, question: str, document_id: str | None = None,) -> RAGResponse:
         """
         Génère une réponse à partir des documents indexés.
 
@@ -86,7 +86,7 @@ class RAGPipeline:
 
         query_embedding = self._generate_embedding(question)
 
-        results = self._retrieve(query_embedding)
+        results = self._retrieve(query_embedding,document_id,)
 
         if not results:
             return RAGResponse(
@@ -147,6 +147,7 @@ class RAGPipeline:
     def _retrieve(
         self,
         query_embedding: list[float],
+        document_id: str | None = None,
     ) -> list[SearchResult]:
         """
         Recherche les chunks les plus pertinents.
@@ -156,6 +157,7 @@ class RAGPipeline:
             return self._vector_store.search(
                 embedding=query_embedding,
                 top_k=self._config.top_k,
+                document_id=document_id,
             )
 
         except Exception as exc:

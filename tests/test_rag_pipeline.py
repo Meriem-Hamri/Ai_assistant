@@ -30,7 +30,12 @@ class FakeVectorStore:
         self.received_embeddings = []
         self.received_top_k = []
 
-    def search(self, embedding, top_k=5):
+    def search(
+        self,
+        embedding,
+        top_k=5,
+        document_id=None,
+    ):
         self.received_embeddings.append(embedding)
         self.received_top_k.append(top_k)
         return self.results
@@ -340,7 +345,12 @@ def test_embedding_error_is_translated_to_rag_error():
 
 def test_retrieval_error_is_translated_to_rag_error():
     class FailingVectorStore:
-        def search(self, embedding, top_k):
+        def search(
+            self,
+            embedding,
+            top_k,
+            document_id=None,
+        ):
             raise RuntimeError("Retrieval failure")
 
     pipeline = RAGPipeline(
