@@ -47,8 +47,13 @@ def create_conversation(
     )
 
 
-@router.get("/")
-def list_conversations():
-    return {
-        "message": "Liste des conversations"
-    }
+@router.get(
+    "/",
+    response_model=list[ConversationResponse],
+)
+def list_conversations(
+    service: ConversationService = Depends(
+        get_conversation_service
+    ),
+):
+    return service.get_conversations()
