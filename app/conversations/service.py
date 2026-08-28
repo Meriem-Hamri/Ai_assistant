@@ -42,3 +42,15 @@ class ConversationService:
         """
 
         return self._repository.get_all()
+
+    def get_conversation(
+        self,
+        conversation_id: str,
+    ) -> dict | None:
+        """
+        Retourne une conversation à partir de son identifiant.
+        """
+
+        return self._repository.get_by_id(
+            conversation_id
+        )

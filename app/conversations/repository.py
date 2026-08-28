@@ -71,3 +71,20 @@ class ConversationRepository:
                 ensure_ascii=False,
                 indent=4,
             )
+    def get_by_id(
+        self,
+        conversation_id: str,
+    ) -> dict | None:
+        """
+        Retourne une conversation à partir de son identifiant.
+
+        Retourne None si la conversation n'existe pas.
+        """
+
+        conversations = self.get_all()
+
+        for conversation in conversations:
+            if conversation.get("id") == conversation_id:
+                return conversation
+
+        return None

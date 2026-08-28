@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends,HTTPException
 
 from app.api.dependencies import (
     get_conversation_repository,
@@ -57,3 +57,25 @@ def list_conversations(
     ),
 ):
     return service.get_conversations()
+
+@router.get(
+    "/{conversation_id}",
+    response_model=ConversationResponse,
+)
+def get_conversation(
+    conversation_id: str,
+    service: ConversationService = Depends(
+        get_conversation_service
+    ),
+):
+    conversation = service.get_conversation(
+        conversation_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation introuvable.",
+        )
+
+    return conversation
