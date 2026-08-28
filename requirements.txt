@@ -1,0 +1,23 @@
+# API / application
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# RAG / vector store
+chromadb>=0.5.0
+numpy>=1.26.0
+
+# LLM / embeddings
+ollama>=0.3.0
+sentence-transformers>=3.2.1
+torch>=2.3.0
+
+# Document ingestion
+pymupdf>=1.24.10
+python-docx>=1.1.0
+pillow>=10.4.0
+paddleocr>=2.7.3
+paddlepaddle>=2.6.1
+
+# Testing
+pytest>=8.2.0
