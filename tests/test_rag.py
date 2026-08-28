@@ -133,7 +133,7 @@ def main():
         "Chemin du document : "
     ).strip()
 
-    document = extract_document(file_path)
+    document = prepare_document(file_path)
 
     print("\nDOCUMENT")
     print("=" * 70)
