@@ -11,7 +11,7 @@ class LLMConfig:
 
     temperature: float = 0.0
 
-    max_tokens: int = 512
+    max_tokens: int = 2024
 
     top_p: float = 0.9
 
