@@ -11,7 +11,7 @@ from app.rag.exceptions import (
     RAGRetrievalError,
 )
 from app.rag.response import RAGResponse, Source
-
+import time
 
 class RAGPipeline:
     """
@@ -34,6 +34,21 @@ class RAGPipeline:
 
     NO_RESULTS_MESSAGE = (
         "Information non disponible dans les documents."
+    )
+
+    _TECHNOLOGY_QUERY_TERMS = (
+        "framework",
+        "technolog",
+        "outil",
+        "logiciel",
+        "ide",
+        "base de donn",
+        "architecture",
+    )
+
+    _TECHNOLOGY_QUERY_CONTEXT = (
+        "Chercher les outils logiciels, frameworks, technologies, "
+        "bases de données et IDE utilisés."
     )
 
     def __init__(
@@ -84,24 +99,49 @@ class RAGPipeline:
 
         question = self._validate_question(question)
 
-        query_embedding = self._generate_embedding(question)
+        start = time.perf_counter()
 
+        # Embedding
+        t0 = time.perf_counter()
+
+        retrieval_query = self._build_retrieval_query(question)
+        query_embedding = self._generate_embedding(retrieval_query)
+
+        print(f"[TIME] Embedding : {time.perf_counter() - t0:.2f}s")
+
+        t0 = time.perf_counter()
         results = self._retrieve(query_embedding,document_id,)
 
+        print(f"[TIME] Retrieval : {time.perf_counter() - t0:.2f}s")
         if not results:
             return RAGResponse(
                 answer=self.NO_RESULTS_MESSAGE,
                 sources=[],
             )
 
-        prompt = self._build_prompt(
-            question=question,
-            results=results,
+        selected_results = self._select_results(
+            results,
+            document_id=document_id,
         )
 
-        answer = self._generate_answer(prompt)
+        # Prompt
+        t0 = time.perf_counter()
+        prompt = self._build_prompt(
+            question=question,
+            results=selected_results,
+        )
+        print(f"[TIME] Prompt : {time.perf_counter() - t0:.2f}s")
 
-        sources = self._build_sources(results)
+        # LLM
+        t0 = time.perf_counter()
+        answer = self._generate_answer(prompt)
+        print(f"[TIME] LLM : {time.perf_counter() - t0:.2f}s")
+        sources = self._build_sources(selected_results)
+
+        print(
+            f"[TIME] TOTAL : "
+            f"{time.perf_counter() - start:.2f}s"
+        )
 
         return RAGResponse(
             answer=answer,
@@ -167,9 +207,10 @@ class RAGPipeline:
                 print(
                     f"page={result.page_number} | "
                     f"distance={result.distance:.4f} | "
+                    f"chars={len(result.text)} | "
                     f"document={result.document_name}"
                 )
-                print(result.text[:500])
+                #print(result.text[:500])
                 print("-" * 60)
 
             return results
@@ -178,6 +219,104 @@ class RAGPipeline:
             raise RAGRetrievalError(
                 "Impossible d'effectuer la recherche vectorielle."
             ) from exc
+
+    @classmethod
+    def _build_retrieval_query(cls, question: str) -> str:
+        """Ajoute un vocabulaire générique aux questions sur les outils."""
+
+        normalized_question = question.casefold()
+
+        if any(
+            term in normalized_question
+            for term in cls._TECHNOLOGY_QUERY_TERMS
+        ):
+            return (
+                f"{question}\n"
+                f"{cls._TECHNOLOGY_QUERY_CONTEXT}"
+            )
+
+        return question
+
+    def _select_results(
+        self,
+        results: list[SearchResult],
+        document_id: str | None,
+    ) -> list[SearchResult]:
+        """Conserve les passages les mieux classés pour le prompt RAG."""
+
+        informative_results = [
+            result
+            for result in results
+            if len(result.text.strip()) >= self._config.min_result_characters
+        ]
+
+        candidate_results = informative_results or results
+
+        if document_id is None:
+            selected_results = self._select_diverse_documents(
+                candidate_results,
+            )
+        else:
+            selected_results = candidate_results[:self._config.top_k]
+
+        candidate_document_ids = {
+            result.document_id
+            for result in candidate_results
+        }
+
+        if (
+            len(selected_results) < self._config.top_k
+            and (
+                document_id is not None
+                or len(candidate_document_ids) == 1
+            )
+        ):
+            selected_chunk_ids = {
+                result.chunk_id
+                for result in selected_results
+            }
+            selected_results.extend(
+                result
+                for result in candidate_results
+                if result.chunk_id not in selected_chunk_ids
+            )
+            selected_results = selected_results[:self._config.top_k]
+
+        print(
+            "[RETRIEVAL] Passages envoyés au prompt : "
+            f"{len(selected_results)}/{len(results)} "
+            f"(candidats informatifs : {len(informative_results)})"
+        )
+
+        return selected_results
+
+    def _select_diverse_documents(
+        self,
+        results: list[SearchResult],
+    ) -> list[SearchResult]:
+        """Conserve le classement tout en limitant un document dominant."""
+
+        selected_results: list[SearchResult] = []
+        result_count_by_document: dict[str, int] = {}
+
+        for result in results:
+            document_result_count = result_count_by_document.get(
+                result.document_id,
+                0,
+            )
+
+            if document_result_count >= self._config.max_results_per_document:
+                continue
+
+            selected_results.append(result)
+            result_count_by_document[result.document_id] = (
+                document_result_count + 1
+            )
+
+            if len(selected_results) == self._config.top_k:
+                break
+
+        return selected_results
 
     def _build_prompt(
         self,
@@ -203,7 +342,7 @@ class RAGPipeline:
         print("\n" + "=" * 70)
         print("PROMPT ENVOYÉ AU LLM")
         print("=" * 70)
-        print(prompt)
+        # print(prompt)  # Diagnostic ponctuel : ne pas journaliser le document complet.
         print("=" * 70)
 
         try:
