@@ -66,7 +66,7 @@ class QwenClient(BaseLLM):
                     "content": prompt.strip(),
                 },
             ],
-            think=False,
+            think=True,
             options={
                 "temperature": self._config.temperature,
                 "num_predict": self._config.max_tokens,

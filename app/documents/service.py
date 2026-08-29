@@ -75,6 +75,7 @@ class DocumentService:
                 )
 
             document.id = document_id
+            document.filename = original_name
 
             chunks = self._indexer.index(
                 document
