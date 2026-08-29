@@ -154,11 +154,25 @@ class RAGPipeline:
         """
 
         try:
-            return self._vector_store.search(
+            results = self._vector_store.search(
                 embedding=query_embedding,
-                top_k=self._config.top_k,
+                top_k=self._config.retrieval_top_k,
+                max_distance=self._config.max_distance,
                 document_id=document_id,
             )
+
+            print("\n========== RETRIEVAL ==========")
+
+            for result in results:
+                print(
+                    f"page={result.page_number} | "
+                    f"distance={result.distance:.4f} | "
+                    f"document={result.document_name}"
+                )
+                print(result.text[:500])
+                print("-" * 60)
+
+            return results
 
         except Exception as exc:
             raise RAGRetrievalError(

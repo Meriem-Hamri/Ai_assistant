@@ -14,7 +14,7 @@ class ChatService:
     def send_message(
         self,
         question: str,
-        document_id: str,
+        document_id: str | None = None,
     ) -> ChatResponse:
 
         response = self._rag_pipeline.answer(

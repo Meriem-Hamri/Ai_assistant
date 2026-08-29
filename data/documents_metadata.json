@@ -1,13 +1,57 @@
 [
     {
-        "id": "96cb7373-2a4a-4af4-af1c-d4f39e887cf1",
+        "id": "cf5312cf-443b-4ce4-b1ba-2a57985420f7",
+        "filename": "Formation.pdf",
+        "type": "pdf",
+        "page_count": 5,
+        "size": 65038,
+        "created_at": "2026-08-29 11:32:10.097715+00:00",
+        "status": "ready",
+        "path": "documents\\cf5312cf-443b-4ce4-b1ba-2a57985420f7.pdf",
+        "chunk_count": 6
+    },
+    {
+        "id": "52b406ba-3d23-4997-8454-7dbcffd06dd6",
         "filename": "Test_rag_scan.pdf",
         "type": "pdf",
         "page_count": 7,
         "size": 2428277,
-        "created_at": "2026-08-28 15:57:08.023354+00:00",
+        "created_at": "2026-08-29 11:33:25.508641+00:00",
         "status": "ready",
-        "path": "documents\\96cb7373-2a4a-4af4-af1c-d4f39e887cf1.pdf",
+        "path": "documents\\52b406ba-3d23-4997-8454-7dbcffd06dd6.pdf",
         "chunk_count": 7
+    },
+    {
+        "id": "a596c4f5-d033-4fcc-be0f-3401a200aba1",
+        "filename": "Environnement.docx",
+        "type": "docx",
+        "page_count": 1,
+        "size": 16561,
+        "created_at": "2026-08-29 11:33:44.127271+00:00",
+        "status": "ready",
+        "path": "documents\\a596c4f5-d033-4fcc-be0f-3401a200aba1.docx",
+        "chunk_count": 3
+    },
+    {
+        "id": "aad96102-9d48-4fba-b248-a76146579365",
+        "filename": "test_rag.docx",
+        "type": "docx",
+        "page_count": 1,
+        "size": 23762,
+        "created_at": "2026-08-29 11:34:07.427614+00:00",
+        "status": "ready",
+        "path": "documents\\aad96102-9d48-4fba-b248-a76146579365.docx",
+        "chunk_count": 4
+    },
+    {
+        "id": "b8a207e2-9219-4b7d-a969-ed08dba58ce3",
+        "filename": "final.pdf",
+        "type": "pdf",
+        "page_count": 31,
+        "size": 3951241,
+        "created_at": "2026-08-29 13:55:06.584874+00:00",
+        "status": "ready",
+        "path": "documents\\b8a207e2-9219-4b7d-a969-ed08dba58ce3.pdf",
+        "chunk_count": 46
     }
 ]
