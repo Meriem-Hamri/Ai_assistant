@@ -39,6 +39,7 @@ def test_qwen_client_uses_custom_config():
         top_p=0.95,
         top_k=50,
         repeat_penalty=1.2,
+        think=True,
     )
 
     client = QwenClient(config)
@@ -147,6 +148,7 @@ def test_generate_sends_generation_options(mock_chat):
         top_p=0.95,
         top_k=50,
         repeat_penalty=1.2,
+        think=True,
     )
 
     client = QwenClient(config)
@@ -162,3 +164,4 @@ def test_generate_sends_generation_options(mock_chat):
         "top_k": 50,
         "repeat_penalty": 1.2,
     }
+    assert kwargs["think"] is True

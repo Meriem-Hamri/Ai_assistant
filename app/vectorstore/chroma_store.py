@@ -3,6 +3,7 @@ from chromadb.api.models.Collection import Collection
 
 from app.vectorstore.base import BaseVectorStore
 from app.vectorstore.config import VectorStoreConfig
+from app.vectorstore.filters import DocumentFilters
 # indexation
 from app.models.document import Chunk
 # Recherche vectorielle
@@ -145,6 +146,7 @@ class ChromaStore(BaseVectorStore):
             top_k: int = 5,
             max_distance: float | None = None,
             document_id: str | None = None,
+            filters: DocumentFilters | None = None,
         ) -> list[SearchResult]:
             """
             Recherche les chunks les plus pertinents.
@@ -211,10 +213,10 @@ class ChromaStore(BaseVectorStore):
                 "n_results": top_k,
             }
 
-            if document_id is not None:
-                query_kwargs["where"] = {
-                    "document_id": document_id
-                }
+            filters = filters or DocumentFilters()
+            where = filters.to_chroma_where(document_id=document_id)
+            if where is not None:
+                query_kwargs["where"] = where
 
             results = self._collection.query(
                 **query_kwargs

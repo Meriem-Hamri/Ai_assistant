@@ -10,18 +10,9 @@ def extract_text_from_pdf(file_path: str) -> Document:
     """
     Extrait le texte d'un PDF.
 
-    Le texte peut provenir :
-    - du texte natif du PDF ;
-    - de l'OCR des images présentes dans le PDF.
-
-    Les deux sources sont fusionnées afin de gérer
-    également les PDF mixtes.
-
-    Raises:
-        FileNotFoundError:
-            Si le fichier n'existe pas.
-        ValueError:
-            Si le PDF ne peut pas être lu.
+    - Texte natif : extrait directement avec PyMuPDF.
+    - Pages contenant des images : OCR de la page entière.
+    - Les deux sources sont fusionnées pour gérer les PDF mixtes.
     """
 
     path = Path(file_path)
@@ -31,6 +22,8 @@ def extract_text_from_pdf(file_path: str) -> Document:
             f"Le fichier '{file_path}' est introuvable."
         )
 
+    pdf = None
+
     try:
         pdf = fitz.open(path)
 
@@ -38,59 +31,112 @@ def extract_text_from_pdf(file_path: str) -> Document:
             filename=path.name
         )
 
-        for page_number, page in enumerate(pdf, start=1):
+        total_pages = len(pdf)
 
-            # --------------------------------------------------
-            # 1. Extraction du texte natif
-            # --------------------------------------------------
-
-            native_text = page.get_text().strip()
+        for page_number, page in enumerate(
+            pdf,
+            start=1,
+        ):
+            print(
+                f"[PDF] Traitement page "
+                f"{page_number}/{total_pages}"
+            )
 
             extracted_parts = []
 
+            # ==================================================
+            # 1. TEXTE NATIF
+            # ==================================================
+
+            native_text = page.get_text().strip()
+
             if native_text:
-                extracted_parts.append(native_text)
+                extracted_parts.append(
+                    native_text
+                )
 
-            # --------------------------------------------------
-            # 2. Extraction des images de la page
-            # --------------------------------------------------
+            # ==================================================
+            # 2. OCR SI LA PAGE CONTIENT DES IMAGES
+            # ==================================================
 
-            images = page.get_images(full=True)
+            images = page.get_images(
+                full=True
+            )
 
-            for image_index, image_info in enumerate(images):
+            if images:
+                print(
+                    f"[PDF] Page {page_number}: "
+                    f"{len(images)} image(s) détectée(s)"
+                )
 
-                xref = image_info[0]
+                # Rendre toute la page en image.
+                # Cela permet de traiter correctement
+                # les pages mixtes texte + images.
+                pixmap = page.get_pixmap(
+                    dpi=200
+                )
 
-                image_data = pdf.extract_image(xref)
-
-                image_bytes = image_data["image"]
-                image_ext = image_data["ext"]
-
-                image_path = (
+                ocr_image_path = (
                     path.parent
-                    / f".ocr_{path.stem}_"
-                    f"{page_number}_{image_index}.{image_ext}"
+                    / (
+                        f".ocr_page_"
+                        f"{path.stem}_"
+                        f"{page_number}.png"
+                    )
                 )
 
                 try:
-                    image_path.write_bytes(image_bytes)
-
-                    ocr_text = extract_text_from_image(
-                        str(image_path)
+                    pixmap.save(
+                        str(ocr_image_path)
                     )
 
-                    if ocr_text:
-                        extracted_parts.append(ocr_text)
+                    print(
+                        f"[OCR] Page "
+                        f"{page_number}/{total_pages}"
+                    )
+
+                    try:
+                        # ocr_document = (
+                        #     extract_text_from_image(
+                        #         str(ocr_image_path)
+                        #     )
+                        # )
+
+                        # if (
+                        #     ocr_document.pages
+                        #     and
+                        #     ocr_document.pages[0].text.strip()
+                        # ):
+                        #     extracted_parts.append(
+                        #         ocr_document.pages[0].text.strip()
+                        #     )
+                        ocr_text = extract_text_from_image(
+                            str(ocr_image_path)
+                        )
+
+                        if ocr_text:
+                            extracted_parts.append(ocr_text)
+
+                    except Exception as ocr_exc:
+                        # Une erreur OCR sur une page
+                        # ne doit pas arrêter tout le PDF.
+                        print(
+                            f"[OCR] Échec page "
+                            f"{page_number}: "
+                            f"{ocr_exc}"
+                        )
 
                 finally:
-                    if image_path.exists():
-                        image_path.unlink()
+                    if ocr_image_path.exists():
+                        ocr_image_path.unlink()
 
-            # --------------------------------------------------
-            # 3. Fusion du texte
-            # --------------------------------------------------
+            # ==================================================
+            # 3. FUSION
+            # ==================================================
 
-            page_text = "\n\n".join(extracted_parts).strip()
+            page_text = "\n\n".join(
+                extracted_parts
+            ).strip()
 
             document.pages.append(
                 DocumentPage(
@@ -100,9 +146,9 @@ def extract_text_from_pdf(file_path: str) -> Document:
             )
 
         document.metadata["type"] = "pdf"
-        document.metadata["page_count"] = len(pdf)
-
-        pdf.close()
+        document.metadata["page_count"] = len(
+            document.pages
+        )
 
         return document
 
@@ -110,3 +156,7 @@ def extract_text_from_pdf(file_path: str) -> Document:
         raise ValueError(
             f"Impossible de lire le PDF : {exc}"
         ) from exc
+
+    finally:
+        if pdf is not None:
+            pdf.close()

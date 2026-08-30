@@ -2,6 +2,7 @@ def test_initialization(store):
     assert store.count() == 0
 
 from app.models.document import Chunk
+from app.vectorstore.filters import DocumentFilters
 
 
 def test_add_chunks(store):
@@ -356,3 +357,51 @@ def test_search_filters_by_document_id(store):
     assert len(results) == 1
     assert results[0].document_id == "docA"
     assert results[0].text == chunk1.text
+
+
+def test_search_filters_by_business_metadata_and_tags(store):
+    finance_chunk = Chunk(
+        text="Le salaire d'Ahmed est de 9500 DH.",
+        document_id="finance-2016",
+        document_name="contrat_2016.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=36,
+        metadata={
+            "category": "finance",
+            "year": 2016,
+            "person": "Ahmed",
+            "tags": ["salaire", "rémunération", "contrat"],
+        },
+    )
+    other_chunk = Chunk(
+        text="Programme de formation annuel.",
+        document_id="formation-2016",
+        document_name="formation.pdf",
+        page_number=1,
+        chunk_index=0,
+        start_char=0,
+        end_char=31,
+        metadata={
+            "category": "formation",
+            "year": 2016,
+            "person": "Ahmed",
+            "tags": ["formation"],
+        },
+    )
+    embedding = [0.1] * 1024
+    store.add_chunks([finance_chunk, other_chunk], [embedding, embedding])
+
+    results = store.search(
+        embedding=embedding,
+        top_k=5,
+        filters=DocumentFilters(
+            category="finance",
+            year=2016,
+            person="Ahmed",
+            tags=("rémunération", "contrat"),
+        ),
+    )
+
+    assert [result.document_id for result in results] == ["finance-2016"]

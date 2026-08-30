@@ -29,15 +29,21 @@ class FakeVectorStore:
         self.results = results or []
         self.received_embeddings = []
         self.received_top_k = []
+        self.received_max_distances = []
+        self.received_filters = []
 
     def search(
         self,
         embedding,
         top_k=5,
+        max_distance=None,
         document_id=None,
+        filters=None,
     ):
         self.received_embeddings.append(embedding)
         self.received_top_k.append(top_k)
+        self.received_max_distances.append(max_distance)
+        self.received_filters.append(filters)
         return self.results
 
 
@@ -70,6 +76,7 @@ class FakeLLM:
 def create_result(
     text: str = "Le contrat dure trois mois.",
     document_name: str = "contrat.pdf",
+    document_id: str = "doc-1",
     page_number: int = 1,
 ) -> SearchResult:
     """
@@ -80,7 +87,7 @@ def create_result(
         chunk_id="chunk-1",
         text=text,
         distance=0.05,
-        document_id="doc-1",
+        document_id=document_id,
         document_name=document_name,
         page_number=page_number,
         chunk_index=0,
@@ -196,7 +203,105 @@ def test_vector_store_receives_embedding_and_top_k():
         embedding_service.embedding
     ]
 
-    assert vector_store.received_top_k == [3]
+    assert vector_store.received_top_k == [20]
+
+
+def test_vector_store_receives_document_filters():
+    pipeline, _, vector_store, _, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    from app.vectorstore.filters import DocumentFilters
+
+    filters = DocumentFilters(
+        category="finance",
+        year=2016,
+        tags=("salaire",),
+    )
+    pipeline.answer("Quelle est la rémunération ?", filters=filters)
+
+    assert vector_store.received_filters == [filters]
+
+
+def test_retrieval_query_is_enriched_for_technology_question():
+    pipeline, embedding_service, _, _, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    pipeline.answer("Quels frameworks ont été utilisés ?")
+
+    assert embedding_service.received_questions == [
+        "Quels frameworks ont été utilisés ?\n"
+        "Chercher les outils logiciels, frameworks, technologies, "
+        "bases de données et IDE utilisés."
+    ]
+
+
+def test_only_top_k_results_are_sent_to_prompt_builder():
+    results = [
+        create_result(text=f"Résultat {index}")
+        for index in range(4)
+    ]
+
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=2,
+    )
+
+    pipeline.answer("Question")
+
+    assert prompt_builder.received_results == [results[:2]]
+
+
+def test_short_results_are_skipped_when_informative_results_exist():
+    short_result = create_result(text="Titre")
+    detailed_results = [
+        create_result(
+            text=f"Information détaillée {index}. " + "A" * 120,
+        )
+        for index in range(2)
+    ]
+
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=[short_result, *detailed_results],
+        top_k=2,
+    )
+
+    pipeline.answer("Question")
+
+    assert prompt_builder.received_results == [detailed_results]
+
+
+def test_results_are_diversified_without_document_filter():
+    results = [
+        create_result(
+            text=f"Information détaillée A {index}. " + "A" * 120,
+            document_id="doc-a",
+            document_name="a.pdf",
+        )
+        for index in range(4)
+    ] + [
+        create_result(
+            text="Information détaillée B. " + "B" * 120,
+            document_id="doc-b",
+            document_name="b.pdf",
+        )
+    ]
+
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=4,
+    )
+
+    pipeline.answer("Question")
+
+    selected_results = prompt_builder.received_results[0]
+    assert [result.document_id for result in selected_results] == [
+        "doc-a",
+        "doc-a",
+        "doc-a",
+        "doc-b",
+    ]
 
 
 def test_results_are_sent_to_prompt_builder():
@@ -295,6 +400,7 @@ def test_sources_are_created_from_search_results():
     assert source.document_name == "contrat.pdf"
     assert source.page_number == 4
     assert source.chunk_id == "chunk-1"
+    assert source.excerpt == result.text
     assert source.distance == 0.05
 
 
@@ -349,7 +455,9 @@ def test_retrieval_error_is_translated_to_rag_error():
             self,
             embedding,
             top_k,
+            max_distance=None,
             document_id=None,
+            filters=None,
         ):
             raise RuntimeError("Retrieval failure")
 

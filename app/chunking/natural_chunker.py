@@ -130,4 +130,5 @@ class NaturalChunker(BaseChunker):
             chunk_index=chunk_index,
             start_char=start_char,
             end_char=end_char,
+            metadata=dict(document.metadata),
         )

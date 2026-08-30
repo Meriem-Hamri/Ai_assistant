@@ -36,4 +36,10 @@ def send_message(
     return service.send_message(
         question=data.question,
         document_id=data.document_id,
+        category=data.category,
+        year=data.year,
+        person=data.person,
+        tags=data.tags,
+        department=data.department,
+        document_type=data.document_type,
     )

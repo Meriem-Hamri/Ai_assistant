@@ -11,6 +11,7 @@ class Source:
     document_name: str
     page_number: int
     chunk_id: str
+    excerpt: str
     distance: float
 
 

@@ -8,12 +8,13 @@ def test_default_config():
 
     config = LLMConfig()
 
-    assert config.model == "qwen3:4b"
+    assert config.model == "qwen2.5:1.5b"
     assert config.temperature == 0.0
     assert config.max_tokens == 512
     assert config.top_p == 0.9
     assert config.top_k == 40
     assert config.repeat_penalty == 1.1
+    assert config.think is False
 
 
 def test_custom_config():
@@ -28,6 +29,7 @@ def test_custom_config():
         top_p=0.95,
         top_k=50,
         repeat_penalty=1.2,
+        think=True,
     )
 
     assert config.model == "qwen3:4b"
@@ -36,6 +38,7 @@ def test_custom_config():
     assert config.top_p == 0.95
     assert config.top_k == 50
     assert config.repeat_penalty == 1.2
+    assert config.think is True
 
 
 def test_config_is_immutable():

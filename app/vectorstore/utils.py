@@ -1,6 +1,39 @@
 from app.models.document import Chunk
 from app.vectorstore.search_result import SearchResult
 
+
+def _prepare_business_metadata(metadata: dict) -> dict:
+    """Convertit les métadonnées métier au format scalaire de ChromaDB."""
+
+    chroma_metadata: dict = {}
+
+    for key in (
+        "title",
+        "category",
+        "year",
+        "person",
+        "department",
+        "document_type",
+    ):
+        value = metadata.get(key)
+        if value is not None:
+            chroma_metadata[key] = value
+
+    tags = metadata.get("tags", [])
+    if tags:
+        chroma_metadata["tags"] = ", ".join(tags)
+        for tag in tags:
+            normalized_tag = "".join(
+                character.lower()
+                if character.isalnum()
+                else "_"
+                for character in tag
+            ).strip("_")
+            if normalized_tag:
+                chroma_metadata[f"tag_{normalized_tag}"] = True
+
+    return chroma_metadata
+
 def prepare_chroma_payload(
     chunks: list[Chunk],
     embeddings: list[list[float]],
@@ -48,16 +81,16 @@ def prepare_chroma_payload(
         documents.append(chunk.text)
         vectors.append(embedding)
 
-        metadatas.append(
-            {
-                "document_id": chunk.document_id,
-                "document_name": chunk.document_name,
-                "page_number": chunk.page_number,
-                "chunk_index": chunk.chunk_index,
-                "start_char": chunk.start_char,
-                "end_char": chunk.end_char,
-            }
-        )
+        metadata = {
+            "document_id": chunk.document_id,
+            "document_name": chunk.document_name,
+            "page_number": chunk.page_number,
+            "chunk_index": chunk.chunk_index,
+            "start_char": chunk.start_char,
+            "end_char": chunk.end_char,
+        }
+        metadata.update(_prepare_business_metadata(chunk.metadata))
+        metadatas.append(metadata)
 
     return ids, documents, vectors, metadatas
 
