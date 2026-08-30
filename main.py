@@ -1,8 +1,13 @@
-from app.extraction.pdf_reader import extract_pdf_text
+"""Point d'entrée de compatibilité pour lancer l'API depuis la racine."""
 
-def main():
-    text=extract_pdf_text("documents/img.pdf")
-    print(text)
+import sys
+from pathlib import Path
 
-if __name__ == "__main__":
-    main()
+
+BACKEND_DIR = Path(__file__).resolve().parent / "Backend"
+sys.path.insert(0, str(BACKEND_DIR))
+
+from app.api.main import app
+
+
+__all__ = ["app"]
