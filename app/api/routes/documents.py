@@ -2,12 +2,14 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     HTTPException,
     UploadFile,
 )
 from app.api.dependencies import (
     get_document_repository,
     get_embedding_service,
+    get_metadata_extractor,
     get_vector_store,
 )
 from app.api.schemas.document import DocumentResponse
@@ -32,6 +34,9 @@ def get_document_service(
     repository: DocumentRepository = Depends(
         get_document_repository
     ),
+    metadata_extractor=Depends(
+        get_metadata_extractor
+    ),
 ) -> DocumentService:
 
     indexer = DocumentIndexer(
@@ -43,6 +48,7 @@ def get_document_service(
         indexer=indexer,
         repository=repository,
         vector_store=vector_store,
+        metadata_extractor=metadata_extractor,
     )
 
 
@@ -52,12 +58,26 @@ def get_document_service(
 )
 async def upload_document(
     file: UploadFile = File(...),
+    title: str | None = Form(None),
+    category: str | None = Form(None),
+    year: int | None = Form(None),
+    person: str | None = Form(None),
+    department: str | None = Form(None),
+    document_type: str | None = Form(None),
+    tags: list[str] | None = Form(None),
     service: DocumentService = Depends(
         get_document_service
     ),
 ):
     return await service.upload_document(
-        file
+        file,
+        title=title,
+        category=category,
+        year=year,
+        person=person,
+        department=department,
+        document_type=document_type,
+        tags=tags,
     )
 
 

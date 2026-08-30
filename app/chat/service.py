@@ -1,5 +1,6 @@
 from app.rag.pipeline import RAGPipeline
 from app.api.schemas.chat import ChatResponse, ChatSourceResponse
+from app.vectorstore.filters import DocumentFilters
 
 
 class ChatService:
@@ -15,11 +16,25 @@ class ChatService:
         self,
         question: str,
         document_id: str | None = None,
+        category: str | None = None,
+        year: int | None = None,
+        person: str | None = None,
+        tags: list[str] | None = None,
+        department: str | None = None,
+        document_type: str | None = None,
     ) -> ChatResponse:
 
         response = self._rag_pipeline.answer(
             question=question,
             document_id=document_id,
+            filters=DocumentFilters(
+                category=category,
+                year=year,
+                person=person,
+                tags=tuple(tags or ()),
+                department=department,
+                document_type=document_type,
+            ),
         )
 
         sources = [

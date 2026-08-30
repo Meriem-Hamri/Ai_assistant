@@ -2,6 +2,7 @@ from app.embeddings.embedding_service import EmbeddingService
 from app.llm.base import BaseLLM
 from app.prompting.prompt_builder import PromptBuilder
 from app.vectorstore.base import BaseVectorStore
+from app.vectorstore.filters import DocumentFilters
 from app.vectorstore.search_result import SearchResult
 
 from app.rag.config import RAGConfig
@@ -72,7 +73,12 @@ class RAGPipeline:
         self._llm = llm
         self._config = config
 
-    def answer(self, question: str, document_id: str | None = None,) -> RAGResponse:
+    def answer(
+        self,
+        question: str,
+        document_id: str | None = None,
+        filters: DocumentFilters | None = None,
+    ) -> RAGResponse:
         """
         Génère une réponse à partir des documents indexés.
 
@@ -110,7 +116,7 @@ class RAGPipeline:
         print(f"[TIME] Embedding : {time.perf_counter() - t0:.2f}s")
 
         t0 = time.perf_counter()
-        results = self._retrieve(query_embedding,document_id,)
+        results = self._retrieve(query_embedding, document_id, filters)
 
         print(f"[TIME] Retrieval : {time.perf_counter() - t0:.2f}s")
         if not results:
@@ -188,6 +194,7 @@ class RAGPipeline:
         self,
         query_embedding: list[float],
         document_id: str | None = None,
+        filters: DocumentFilters | None = None,
     ) -> list[SearchResult]:
         """
         Recherche les chunks les plus pertinents.
@@ -199,6 +206,7 @@ class RAGPipeline:
                 top_k=self._config.retrieval_top_k,
                 max_distance=self._config.max_distance,
                 document_id=document_id,
+                filters=filters,
             )
 
             print("\n========== RETRIEVAL ==========")

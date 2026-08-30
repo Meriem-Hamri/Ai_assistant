@@ -30,6 +30,7 @@ class FakeVectorStore:
         self.received_embeddings = []
         self.received_top_k = []
         self.received_max_distances = []
+        self.received_filters = []
 
     def search(
         self,
@@ -37,10 +38,12 @@ class FakeVectorStore:
         top_k=5,
         max_distance=None,
         document_id=None,
+        filters=None,
     ):
         self.received_embeddings.append(embedding)
         self.received_top_k.append(top_k)
         self.received_max_distances.append(max_distance)
+        self.received_filters.append(filters)
         return self.results
 
 
@@ -201,6 +204,23 @@ def test_vector_store_receives_embedding_and_top_k():
     ]
 
     assert vector_store.received_top_k == [20]
+
+
+def test_vector_store_receives_document_filters():
+    pipeline, _, vector_store, _, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    from app.vectorstore.filters import DocumentFilters
+
+    filters = DocumentFilters(
+        category="finance",
+        year=2016,
+        tags=("salaire",),
+    )
+    pipeline.answer("Quelle est la rémunération ?", filters=filters)
+
+    assert vector_store.received_filters == [filters]
 
 
 def test_retrieval_query_is_enriched_for_technology_question():
@@ -436,6 +456,7 @@ def test_retrieval_error_is_translated_to_rag_error():
             top_k,
             max_distance=None,
             document_id=None,
+            filters=None,
         ):
             raise RuntimeError("Retrieval failure")
 
