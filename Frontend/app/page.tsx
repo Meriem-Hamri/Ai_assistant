@@ -1,28 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getDocuments } from "@/lib/api/documents";
-import type { Document } from "@/types/document";
+import { useState } from "react";
+
+import { DocumentList } from "@/components/documents/DocumentList";
+import { AppShell } from "@/components/layout/AppShell";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { useDocuments } from "@/hooks/useDocuments";
 
 export default function Home() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    documents,
+    loading,
+    error,
+  } = useDocuments();
 
-  useEffect(() => {
-    getDocuments()
-      .then(setDocuments)
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Erreur inconnue");
-      });
-  }, []);
+  const [
+    selectedDocumentId,
+    setSelectedDocumentId,
+  ] = useState<string | null>(null);
 
   return (
-    <main>
-      <h1>Assistant AI</h1>
+    <AppShell
+      sidebar={
+        <Sidebar>
+          <DocumentList
+            documents={documents}
+            loading={loading}
+            error={error}
+            selectedDocumentId={selectedDocumentId}
+            onSelectDocument={setSelectedDocumentId}
+          />
+        </Sidebar>
+      }
+    >
+      <section>
+        <h2>Bienvenue</h2>
 
-      {error && <p>Erreur : {error}</p>}
-
-      <pre>{JSON.stringify(documents, null, 2)}</pre>
-    </main>
+        {selectedDocumentId === null ? (
+          <p>Tous les documents sont sélectionnés.</p>
+        ) : (
+          <p>
+            Document sélectionné :{" "}
+            {documents.find(
+              (document) => document.id === selectedDocumentId
+            )?.filename ?? selectedDocumentId}
+          </p>
+        )}
+      </section>
+    </AppShell>
   );
 }
