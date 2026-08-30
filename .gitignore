@@ -43,3 +43,10 @@ tests/chroma_db/
 # Or more generally
 *.sqlite3
 *.bin
+
+node_modules/
+Frontend/node_modules/
+.next/
+Frontend/.next/
+.env.local
+Frontend/.env.local

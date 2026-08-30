@@ -1,0 +1,15 @@
+{
+  "name": "assistant-ai",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "workspaces": [
+    "Backend",
+    "Frontend"
+  ],
+  "scripts": {
+    "dev": "turbo run dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.12"
+  }
+}
