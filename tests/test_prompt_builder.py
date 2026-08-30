@@ -77,6 +77,8 @@ def test_prompt_contains_source_metadata():
 
     assert "contrat.pdf" in prompt
     assert "5" in prompt
+    assert "Nom du fichier : contrat.pdf" in prompt
+    assert "Contenu du passage" in prompt
 
 
 def test_multiple_results():
@@ -176,7 +178,8 @@ def test_context_length_limit():
         results=results,
     )
 
-    assert len(prompt) < 1000
+    assert "A" * 500 not in prompt
+    assert len(prompt) <= len(config.system_instruction) + 250
 
 
 def test_custom_configuration():

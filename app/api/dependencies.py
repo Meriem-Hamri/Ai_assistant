@@ -6,6 +6,7 @@ from app.vectorstore.config import VectorStoreConfig
 from app.documents.repository import DocumentRepository
 from app.conversations.repository import ConversationRepository
 from app.llm.qwen_client import QwenClient
+from app.metadata.extractor import MetadataExtractor
 from app.prompting.prompt_builder import PromptBuilder
 from app.rag.config import RAGConfig
 from app.rag.pipeline import RAGPipeline
@@ -26,6 +27,7 @@ _conversation_repository = ConversationRepository()
 
 _prompt_builder = PromptBuilder()
 _llm = QwenClient()
+_metadata_extractor = MetadataExtractor()
 _rag_pipeline = RAGPipeline(
     embedding_service=_embedding_service,
     vector_store=_vector_store,
@@ -50,3 +52,7 @@ def get_conversation_repository() -> ConversationRepository:
 
 def get_rag_pipeline() -> RAGPipeline:
     return _rag_pipeline
+
+
+def get_metadata_extractor() -> MetadataExtractor:
+    return _metadata_extractor

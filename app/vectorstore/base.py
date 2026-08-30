@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 
 from app.models.document import Chunk
+from app.vectorstore.filters import DocumentFilters
 from app.vectorstore.search_result import SearchResult
 
 
@@ -30,6 +31,7 @@ class BaseVectorStore(ABC):
         top_k: int = 5,
         max_distance: float | None = None,
         document_id: str | None = None,
+        filters: DocumentFilters | None = None,
     ) -> list[SearchResult]:
         """
         Recherche les chunks les plus similaires.

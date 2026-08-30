@@ -13,8 +13,9 @@ ANSWER_HEADER = "RÉPONSE"
 
 
 SOURCE_TEMPLATE = """[Source {source_number}]
-Document : {document_name}
+Nom du fichier : {document_name}
 Page : {page_number}
+Contenu du passage :
 
 {content}
 """
