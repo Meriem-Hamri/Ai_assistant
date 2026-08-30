@@ -1,3 +1,8 @@
+import os
+
+# La suite doit utiliser le modèle BGE-M3 déjà présent dans le cache local.
+os.environ["HF_HUB_OFFLINE"] = "1"
+
 import pytest
 
 from app.embeddings.embedding_service import EmbeddingService

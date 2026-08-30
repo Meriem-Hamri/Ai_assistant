@@ -6,6 +6,7 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+from fastapi.responses import FileResponse
 from app.api.dependencies import (
     get_document_repository,
     get_embedding_service,
@@ -113,6 +114,55 @@ def get_document(
         )
 
     return document
+
+
+@router.get(
+    "/{document_id}/file",
+    response_class=FileResponse,
+)
+def get_document_file(
+    document_id: str,
+    download: bool = False,
+    service: DocumentService = Depends(
+        get_document_service
+    ),
+):
+    """Affiche le fichier, ou le télécharge avec ?download=true."""
+
+    try:
+        document_file = service.get_document_file(document_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Fichier du document indisponible.",
+        )
+
+    if document_file is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable.",
+        )
+
+    file_path, metadata = document_file
+    media_types = {
+        "pdf": "application/pdf",
+        "docx": (
+            "application/vnd.openxmlformats-officedocument."
+            "wordprocessingml.document"
+        ),
+    }
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_types.get(
+            metadata.get("type"),
+            "application/octet-stream",
+        ),
+        filename=metadata["filename"],
+        content_disposition_type=(
+            "attachment" if download else "inline"
+        ),
+    )
 
 @router.delete(
     "/{document_id}",

@@ -226,6 +226,24 @@ class DocumentService:
             document_id
         )
 
+    def get_document_file(
+        self,
+        document_id: str,
+    ) -> tuple[Path, dict] | None:
+        """Retourne le fichier physique et ses métadonnées pour le viewer."""
+
+        metadata = self.get_document(document_id)
+        if metadata is None:
+            return None
+
+        file_path = Path(metadata["path"])
+        if not file_path.is_file():
+            raise FileNotFoundError(
+                "Le fichier du document n'est plus disponible."
+            )
+
+        return file_path, metadata
+
     def delete_document(
         self,
         document_id: str,

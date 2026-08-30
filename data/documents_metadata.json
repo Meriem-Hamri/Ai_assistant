@@ -1,78 +1,5 @@
 [
     {
-        "id": "cf5312cf-443b-4ce4-b1ba-2a57985420f7",
-        "filename": "Formation.pdf",
-        "type": "pdf",
-        "page_count": 5,
-        "size": 65038,
-        "created_at": "2026-08-29 11:32:10.097715+00:00",
-        "status": "ready",
-        "path": "documents\\cf5312cf-443b-4ce4-b1ba-2a57985420f7.pdf",
-        "chunk_count": 6
-    },
-    {
-        "id": "52b406ba-3d23-4997-8454-7dbcffd06dd6",
-        "filename": "Test_rag_scan.pdf",
-        "type": "pdf",
-        "page_count": 7,
-        "size": 2428277,
-        "created_at": "2026-08-29 11:33:25.508641+00:00",
-        "status": "ready",
-        "path": "documents\\52b406ba-3d23-4997-8454-7dbcffd06dd6.pdf",
-        "chunk_count": 7
-    },
-    {
-        "id": "a596c4f5-d033-4fcc-be0f-3401a200aba1",
-        "filename": "Environnement.docx",
-        "type": "docx",
-        "page_count": 1,
-        "size": 16561,
-        "created_at": "2026-08-29 11:33:44.127271+00:00",
-        "status": "ready",
-        "path": "documents\\a596c4f5-d033-4fcc-be0f-3401a200aba1.docx",
-        "chunk_count": 3
-    },
-    {
-        "id": "aad96102-9d48-4fba-b248-a76146579365",
-        "filename": "test_rag.docx",
-        "type": "docx",
-        "page_count": 1,
-        "size": 23762,
-        "created_at": "2026-08-29 11:34:07.427614+00:00",
-        "status": "ready",
-        "path": "documents\\aad96102-9d48-4fba-b248-a76146579365.docx",
-        "chunk_count": 4
-    },
-    {
-        "id": "b8a207e2-9219-4b7d-a969-ed08dba58ce3",
-        "filename": "final.pdf",
-        "type": "pdf",
-        "page_count": 31,
-        "size": 3951241,
-        "created_at": "2026-08-29 13:55:06.584874+00:00",
-        "status": "ready",
-        "path": "documents\\b8a207e2-9219-4b7d-a969-ed08dba58ce3.pdf",
-        "chunk_count": 46
-    },
-    {
-        "id": "d02fb435-e823-4d4e-bf67-3590ca263b72",
-        "filename": "Formation.pdf",
-        "type": "pdf",
-        "page_count": 5,
-        "size": 65038,
-        "created_at": "2026-08-30 00:17:15.284919+00:00",
-        "status": "ready",
-        "path": "documents\\d02fb435-e823-4d4e-bf67-3590ca263b72.pdf",
-        "chunk_count": 6,
-        "title": "Guide interne - Développement des compétences",
-        "category": "Formation",
-        "year": null,
-        "person": null,
-        "department": null,
-        "document_type": "rapport",
-        "tags": []
-    },
-    {
         "id": "3eb04a81-a8ea-4d49-a82b-18f90ac8c3d8",
         "filename": "500_pages.pdf",
         "type": "pdf",
@@ -88,24 +15,6 @@
         "person": null,
         "department": null,
         "document_type": null,
-        "tags": []
-    },
-    {
-        "id": "87ab053f-81db-4862-a25b-0c63d8b0b223",
-        "filename": "Formation.pdf",
-        "type": "pdf",
-        "page_count": 5,
-        "size": 65038,
-        "created_at": "2026-08-30 00:57:51.492704+00:00",
-        "status": "ready",
-        "path": "documents\\87ab053f-81db-4862-a25b-0c63d8b0b223.pdf",
-        "chunk_count": 6,
-        "title": "Guide interne - Développement des compétences",
-        "category": "formation",
-        "year": null,
-        "person": null,
-        "department": null,
-        "document_type": "rapport",
         "tags": []
     },
     {
