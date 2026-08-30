@@ -42,6 +42,8 @@ class ChatService:
                 document_id=source.document_id,
                 document_name=source.document_name,
                 page_number=source.page_number,
+                chunk_id=source.chunk_id,
+                excerpt=source.excerpt,
                 distance=source.distance,
             )
             for source in response.sources

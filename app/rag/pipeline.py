@@ -376,6 +376,7 @@ class RAGPipeline:
                 document_name=result.document_name,
                 page_number=result.page_number,
                 chunk_id=result.chunk_id,
+                excerpt=result.text.strip(),
                 distance=result.distance,
             )
             for result in results

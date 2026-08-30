@@ -16,6 +16,8 @@ class ChatSourceResponse(BaseModel):
     document_id: str
     document_name: str
     page_number: int | None
+    chunk_id: str
+    excerpt: str
     distance: float
 
 

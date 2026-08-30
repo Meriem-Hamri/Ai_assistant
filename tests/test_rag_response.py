@@ -7,6 +7,7 @@ def test_source_creation():
         document_name="contrat.pdf",
         page_number=3,
         chunk_id="chunk-7",
+        excerpt="Extrait du contrat.",
         distance=0.12,
     )
 
@@ -14,6 +15,7 @@ def test_source_creation():
     assert source.document_name == "contrat.pdf"
     assert source.page_number == 3
     assert source.chunk_id == "chunk-7"
+    assert source.excerpt == "Extrait du contrat."
     assert source.distance == 0.12
 
 
@@ -23,6 +25,7 @@ def test_rag_response_creation():
         document_name="contrat.pdf",
         page_number=3,
         chunk_id="chunk-7",
+        excerpt="Extrait du contrat.",
         distance=0.12,
     )
 
@@ -53,6 +56,7 @@ def test_source_is_immutable():
         document_name="contrat.pdf",
         page_number=1,
         chunk_id="chunk-1",
+        excerpt="Extrait du contrat.",
         distance=0.1,
     )
 

@@ -400,6 +400,7 @@ def test_sources_are_created_from_search_results():
     assert source.document_name == "contrat.pdf"
     assert source.page_number == 4
     assert source.chunk_id == "chunk-1"
+    assert source.excerpt == result.text
     assert source.distance == 0.05
 
 
