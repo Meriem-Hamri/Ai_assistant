@@ -10,12 +10,12 @@ export function AppShell({
   children,
 }: AppShellProps) {
   return (
-    <div>
-      <aside>
+    <div className="app-shell">
+      <aside className="app-sidebar">
         {sidebar}
       </aside>
 
-      <main>
+      <main className="app-main">
         {children}
       </main>
     </div>

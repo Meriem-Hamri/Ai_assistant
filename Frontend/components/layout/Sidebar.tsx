@@ -8,8 +8,11 @@ export function Sidebar({
   children,
 }: SidebarProps) {
   return (
-    <div>
-      <h1>Assistant AI</h1>
+    <div className="sidebar-inner">
+      <header className="sidebar-header">
+        <span className="brand-mark" aria-hidden="true">A</span>
+        <h1 className="sidebar-title">Assistant AI</h1>
+      </header>
 
       {children}
     </div>
