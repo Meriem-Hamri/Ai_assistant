@@ -21,10 +21,9 @@ class FakeRepository:
 
 def create_service(documents: dict[str, dict]) -> DocumentService:
     return DocumentService(
-        indexer=None,
+        processor=None,
         repository=FakeRepository(documents),
         vector_store=None,
-        metadata_extractor=object(),
     )
 
 

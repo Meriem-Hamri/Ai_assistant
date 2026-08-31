@@ -15,6 +15,7 @@ from app.api.dependencies import (
 )
 from app.api.schemas.document import DocumentResponse
 from app.documents.indexer import DocumentIndexer
+from app.documents.processor import DocumentProcessor
 from app.documents.repository import DocumentRepository
 from app.documents.service import (
     DocumentDeletionConflictError,
@@ -47,12 +48,15 @@ def get_document_service(
         embedding_service=embedding_service,
         vector_store=vector_store,
     )
+    processor = DocumentProcessor(
+        indexer=indexer,
+        metadata_extractor=metadata_extractor,
+    )
 
     return DocumentService(
-        indexer=indexer,
+        processor=processor,
         repository=repository,
         vector_store=vector_store,
-        metadata_extractor=metadata_extractor,
     )
 
 

@@ -5,11 +5,8 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.cleaning.cleaner import clean_document
-from app.documents.indexer import DocumentIndexer
+from app.documents.processor import DocumentProcessor
 from app.documents.repository import DocumentRepository
-from app.extraction.extraction_service import extract_document
-from app.metadata.extractor import MetadataExtractor
 from starlette.concurrency import run_in_threadpool
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -31,15 +28,13 @@ class DocumentService:
 
     def __init__(
         self,
-        indexer: DocumentIndexer,
+        processor: DocumentProcessor,
         repository: DocumentRepository,
         vector_store,
-        metadata_extractor: MetadataExtractor | None = None,
     ) -> None:
-        self._indexer = indexer
+        self._processor = processor
         self._repository = repository
         self._vector_store = vector_store
-        self._metadata_extractor = metadata_extractor or MetadataExtractor()
 
     async def upload_document(
         self,
@@ -134,18 +129,26 @@ class DocumentService:
                 )
 
             processing_result = await run_in_threadpool(
-                self._process_document,
-                file_path,
-                document_id,
-                original_name,
-                manual_metadata,
-                tags is not None,
+                self._processor.process,
+                file_path=file_path,
+                document_id=document_id,
+                filename=original_name,
+                manual_metadata=manual_metadata,
+                manual_tags_provided=tags is not None,
             )
 
             ready_updates = {
                 "status": "ready",
                 "error_message": None,
-                **processing_result,
+                "page_count": processing_result.page_count,
+                "chunk_count": processing_result.chunk_count,
+                "title": processing_result.title,
+                "category": processing_result.category,
+                "year": processing_result.year,
+                "person": processing_result.person,
+                "department": processing_result.department,
+                "document_type": processing_result.document_type,
+                "tags": processing_result.tags,
             }
             ready_updated = await run_in_threadpool(
                 self._repository.update,
@@ -222,33 +225,6 @@ class DocumentService:
             "document_type": clean(document_type),
             "tags": normalized_tags,
         }
-
-    @staticmethod
-    def _merge_business_metadata(
-        *,
-        automatic_metadata: dict,
-        manual_metadata: dict,
-        manual_tags_provided: bool,
-    ) -> dict:
-        """Les corrections manuelles priment sur l'analyse automatique."""
-
-        merged_metadata = dict(automatic_metadata)
-
-        for key in (
-            "title",
-            "category",
-            "year",
-            "person",
-            "department",
-            "document_type",
-        ):
-            if manual_metadata[key] is not None:
-                merged_metadata[key] = manual_metadata[key]
-
-        if manual_tags_provided:
-            merged_metadata["tags"] = manual_metadata["tags"]
-
-        return merged_metadata
 
     def get_documents(self) -> list[dict]:
         """
@@ -336,64 +312,3 @@ class DocumentService:
         )
 
         return True
-
-    def _process_document(
-        self,
-        file_path: Path,
-        document_id: str,
-        original_name: str,
-        manual_metadata: dict,
-        manual_tags_provided: bool,
-    ) -> dict:
-        """
-        Exécute le pipeline synchrone et coûteux
-        de traitement d'un document.
-
-        Cette méthode doit être appelée depuis un threadpool
-        afin de ne pas bloquer l'event loop FastAPI.
-        """
-
-        document = extract_document(
-            str(file_path)
-        )
-
-        for page in document.pages:
-            page.text = clean_document(
-                page.text
-            )
-
-        document_text = "\n\n".join(
-            page.text
-            for page in document.pages
-        )
-
-        automatic_metadata = (
-            self._metadata_extractor
-            .extract(document_text)
-            .to_dict()
-        )
-
-        business_metadata = (
-            self._merge_business_metadata(
-                automatic_metadata=automatic_metadata,
-                manual_metadata=manual_metadata,
-                manual_tags_provided=manual_tags_provided,
-            )
-        )
-
-        document.id = document_id
-        document.filename = original_name
-
-        document.metadata.update(
-            business_metadata
-        )
-
-        chunks = self._indexer.index(
-            document
-        )
-
-        return {
-            "page_count": len(document.pages),
-            "chunk_count": len(chunks),
-            **business_metadata,
-        }

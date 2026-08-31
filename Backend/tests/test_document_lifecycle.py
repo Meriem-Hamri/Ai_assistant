@@ -5,11 +5,11 @@ import pytest
 from fastapi import UploadFile
 
 from app.api.schemas.document import DocumentResponse
+from app.documents.processor import DocumentProcessingResult
 from app.documents.service import (
     DocumentDeletionConflictError,
     DocumentService,
 )
-from app.models.document import Document, DocumentPage
 
 
 @pytest.fixture
@@ -57,39 +57,51 @@ class FakeVectorStore:
         self.deleted_ids.append(document_id)
 
 
-class FakeMetadata:
-    def to_dict(self) -> dict:
-        return {
-            "title": "Titre automatique",
-            "category": "Juridique",
-            "year": 2025,
-            "person": "Amine",
-            "department": "Direction",
-            "document_type": "Contrat",
-            "tags": ["contrat"],
-        }
+class FakeDocumentProcessor:
+    def __init__(
+        self,
+        repository: FakeRepository,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self.repository = repository
+        self.error = error
+        self.calls: list[dict] = []
+
+    def process(self, **kwargs) -> DocumentProcessingResult:
+        assert self.repository.document is not None
+        assert self.repository.document["status"] == "processing"
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return DocumentProcessingResult(
+            page_count=1,
+            chunk_count=2,
+            title="Titre automatique",
+            category="Juridique",
+            year=2025,
+            person="Amine",
+            department="Direction",
+            document_type="Contrat",
+            tags=["contrat"],
+        )
 
 
-class FakeMetadataExtractor:
-    def extract(self, text: str) -> FakeMetadata:
-        return FakeMetadata()
-
-
-class FakeIndexer:
-    def index(self, document: Document) -> list[object]:
-        return [object(), object()]
-
-
-def make_service(repository: FakeRepository) -> tuple[DocumentService, FakeVectorStore]:
+def make_service(
+    repository: FakeRepository,
+    *,
+    processor_error: Exception | None = None,
+) -> tuple[DocumentService, FakeVectorStore, FakeDocumentProcessor]:
     vector_store = FakeVectorStore()
+    processor = FakeDocumentProcessor(repository, error=processor_error)
     return (
         DocumentService(
-            indexer=FakeIndexer(),
+            processor=processor,
             repository=repository,
             vector_store=vector_store,
-            metadata_extractor=FakeMetadataExtractor(),
         ),
         vector_store,
+        processor,
     )
 
 
@@ -127,20 +139,8 @@ async def test_upload_transitions_from_queued_to_processing_to_ready(
     tmp_path: Path,
 ):
     repository = FakeRepository()
-    service, _ = make_service(repository)
+    service, _, processor = make_service(repository)
     monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
-    observed_statuses: list[str] = []
-
-    def fake_extract(file_path: str) -> Document:
-        assert repository.document is not None
-        observed_statuses.append(repository.document["status"])
-        return Document(
-            filename=Path(file_path).name,
-            pages=[DocumentPage(page_number=1, text="Texte brut")],
-        )
-
-    monkeypatch.setattr("app.documents.service.extract_document", fake_extract)
-    monkeypatch.setattr("app.documents.service.clean_document", lambda text: text)
 
     result = await service.upload_document(make_upload())
 
@@ -149,28 +149,51 @@ async def test_upload_transitions_from_queued_to_processing_to_ready(
         ("update", "processing"),
         ("update", "ready"),
     ]
-    assert observed_statuses == ["processing"]
+    assert len(processor.calls) == 1
+    assert processor.calls[0]["document_id"] == result["id"]
+    assert processor.calls[0]["filename"] == "rapport.pdf"
+    assert processor.calls[0]["manual_tags_provided"] is False
     assert result["status"] == "ready"
-    assert result["title"] == "Titre automatique"
-    assert result["page_count"] == 1
-    assert result["chunk_count"] == 2
+    assert {
+        key: result[key]
+        for key in (
+            "page_count",
+            "chunk_count",
+            "title",
+            "category",
+            "year",
+            "person",
+            "department",
+            "document_type",
+            "tags",
+        )
+    } == {
+        "page_count": 1,
+        "chunk_count": 2,
+        "title": "Titre automatique",
+        "category": "Juridique",
+        "year": 2025,
+        "person": "Amine",
+        "department": "Direction",
+        "document_type": "Contrat",
+        "tags": ["contrat"],
+    }
     assert repository.document == result
 
 
 @pytest.mark.anyio
 async def test_processing_error_sets_error_and_keeps_file(monkeypatch, tmp_path: Path):
     repository = FakeRepository()
-    service, _ = make_service(repository)
-    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
-    monkeypatch.setattr(
-        service,
-        "_process_document",
-        lambda *args: (_ for _ in ()).throw(RuntimeError("détail technique")),
+    service, _, processor = make_service(
+        repository,
+        processor_error=RuntimeError("détail technique"),
     )
+    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
 
     with pytest.raises(RuntimeError, match="détail technique"):
         await service.upload_document(make_upload())
 
+    assert len(processor.calls) == 1
     assert repository.document is not None
     assert repository.document["status"] == "error"
     assert repository.document["error_message"] == (
@@ -182,19 +205,20 @@ async def test_processing_error_sets_error_and_keeps_file(monkeypatch, tmp_path:
 @pytest.mark.anyio
 async def test_initial_save_error_removes_file(monkeypatch, tmp_path: Path):
     repository = FakeRepository(save_error=RuntimeError("postgres indisponible"))
-    service, _ = make_service(repository)
+    service, _, processor = make_service(repository)
     monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
 
     with pytest.raises(RuntimeError, match="postgres indisponible"):
         await service.upload_document(make_upload())
 
     assert list(tmp_path.iterdir()) == []
+    assert processor.calls == []
 
 
 @pytest.mark.parametrize("status", ["queued", "processing"])
 def test_delete_rejects_active_documents(tmp_path: Path, status: str):
     repository = FakeRepository()
-    service, vector_store = make_service(repository)
+    service, vector_store, _ = make_service(repository)
     file_path = tmp_path / f"{status}.pdf"
     file_path.write_bytes(b"contenu")
     repository.document = {
@@ -214,7 +238,7 @@ def test_delete_rejects_active_documents(tmp_path: Path, status: str):
 @pytest.mark.parametrize("status", ["ready", "error"])
 def test_delete_allows_terminal_documents(tmp_path: Path, status: str):
     repository = FakeRepository()
-    service, vector_store = make_service(repository)
+    service, vector_store, _ = make_service(repository)
     file_path = tmp_path / f"{status}.pdf"
     file_path.write_bytes(b"contenu")
     repository.document = {
