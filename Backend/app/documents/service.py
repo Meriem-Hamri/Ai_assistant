@@ -6,11 +6,11 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.documents.processor import DocumentProcessor
+from app.documents.paths import resolve_document_path
 from app.documents.repository import DocumentRepository
 from starlette.concurrency import run_in_threadpool
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-PROJECT_ROOT = BACKEND_DIR.parent
 DOCUMENTS_DIR = BACKEND_DIR / "documents"
 DOCUMENTS_DIR.mkdir(exist_ok=True)
 
@@ -255,27 +255,13 @@ class DocumentService:
         if metadata is None:
             return None
 
-        file_path = self._resolve_document_path(metadata["path"])
+        file_path = resolve_document_path(metadata["path"])
         if not file_path.is_file():
             raise FileNotFoundError(
                 "Le fichier du document n'est plus disponible."
             )
 
         return file_path, metadata
-
-    @staticmethod
-    def _resolve_document_path(stored_path: str) -> Path:
-        """Résout les fichiers backend et les chemins historiques du projet."""
-
-        path = Path(stored_path)
-        if path.is_absolute():
-            return path
-
-        backend_path = BACKEND_DIR / path
-        if backend_path.exists():
-            return backend_path
-
-        return PROJECT_ROOT / path
 
     def delete_document(
         self,
@@ -302,7 +288,7 @@ class DocumentService:
             document_id
         )
 
-        file_path = self._resolve_document_path(metadata["path"])
+        file_path = resolve_document_path(metadata["path"])
 
         if file_path.exists():
             file_path.unlink()

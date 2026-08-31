@@ -14,6 +14,7 @@ def test_celery_app_uses_redis_broker_without_result_backend(monkeypatch):
     assert module.celery_app.conf.broker_url == redis_url
     assert module.celery_app.conf.task_ignore_result is True
     assert module.celery_app.conf.result_backend is None
+    assert "app.tasks.documents" in module.celery_app.conf.include
 
 
 def test_celery_app_requires_redis_url(monkeypatch):

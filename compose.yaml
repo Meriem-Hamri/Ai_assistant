@@ -65,6 +65,10 @@ services:
 
     environment:
       REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      OLLAMA_HOST: http://host.docker.internal:11434
 
     volumes:
       - ./Backend/documents:/app/documents
@@ -72,6 +76,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      chroma:
+        condition: service_started
 
     restart: unless-stopped
 

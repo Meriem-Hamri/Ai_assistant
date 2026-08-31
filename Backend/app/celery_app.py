@@ -9,5 +9,9 @@ if not redis_url:
         "REDIS_URL is required to configure the AssistantAI Celery broker."
     )
 
-celery_app = Celery("assistantai", broker=redis_url)
+celery_app = Celery(
+    "assistantai",
+    broker=redis_url,
+    include=["app.tasks.documents"],
+)
 celery_app.conf.task_ignore_result = True
