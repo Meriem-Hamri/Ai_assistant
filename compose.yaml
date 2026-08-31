@@ -72,6 +72,7 @@ services:
 
     volumes:
       - ./Backend/documents:/app/documents
+      - ${BGE_M3_CACHE_PATH}:/root/.cache/huggingface/hub/models--BAAI--bge-m3:ro
 
     depends_on:
       redis:
