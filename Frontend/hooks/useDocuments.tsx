@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getDocuments } from "@/lib/api/documents";
 import type { Document } from "@/types/document";
@@ -9,6 +9,7 @@ interface UseDocumentsResult {
   documents: Document[];
   loading: boolean;
   error: string | null;
+  refreshDocuments: () => Promise<void>;
 }
 
 export function useDocuments(): UseDocumentsResult {
@@ -16,31 +17,32 @@ export function useDocuments(): UseDocumentsResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadDocuments() {
-      try {
-        setLoading(true);
-        setError(null);
+  const refreshDocuments = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const data = await getDocuments();
-        setDocuments(data);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Impossible de charger les documents."
-        );
-      } finally {
-        setLoading(false);
-      }
+      const data = await getDocuments();
+      setDocuments(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger les documents."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    loadDocuments();
   }, []);
+
+  useEffect(() => {
+    void refreshDocuments();
+  }, [refreshDocuments]);
 
   return {
     documents,
     loading,
     error,
+    refreshDocuments,
   };
 }

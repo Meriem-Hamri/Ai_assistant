@@ -22,17 +22,33 @@ button { font: inherit; }
 .sidebar-header { display: flex; align-items: center; gap: 10px; padding: 4px 8px 22px; }
 .brand-mark, .welcome-mark { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; background: var(--text-primary); color: #fff; font-size: 12px; font-weight: 600; }
 .sidebar-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.document-upload { padding: 0 0 18px; }
+.upload-button { width: 100%; border: 1px solid var(--border-color); border-radius: 8px; background: var(--background); color: var(--text-primary); padding: 9px 10px; text-align: left; cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease; }
+.upload-button:hover:not(:disabled) { background: var(--hover-background); border-color: #d9d9da; }
+.upload-button:focus-visible, .document-action-button:focus-visible, .document-main-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.upload-button:disabled { color: var(--text-secondary); cursor: wait; }
+.upload-status, .upload-error { margin: 8px 6px 0; font-size: 11px; line-height: 1.45; }
+.upload-status { color: var(--text-secondary); }
+.upload-error { color: #8a5555; }
 .document-library { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .sidebar-section-title { margin: 0; padding: 0 10px 8px; color: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .document-list { min-height: 0; overflow-y: auto; padding: 4px 0 12px; scrollbar-width: thin; }
 
-.document-entry { position: relative; display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer; transition: background-color 140ms ease, color 140ms ease; }
+.document-entry { position: relative; display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-primary); text-align: left; transition: background-color 140ms ease, color 140ms ease; }
 .document-entry:hover { background: var(--hover-background); }
-.document-entry[aria-pressed="true"] { background: var(--selected-background); }
-.document-entry[aria-pressed="true"]::before { position: absolute; top: 10px; bottom: 10px; left: 0; width: 2px; border-radius: 2px; background: var(--text-secondary); content: ""; }
+.document-entry[aria-pressed="true"], .document-entry.selected { background: var(--selected-background); }
+.document-entry[aria-pressed="true"]::before, .document-entry.selected::before { position: absolute; top: 10px; bottom: 10px; left: 0; width: 2px; border-radius: 2px; background: var(--text-secondary); content: ""; }
 .document-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.all-documents-entry { align-items: center; margin-bottom: 12px; padding: 10px; font-size: 14px; font-weight: 500; }
-.document-item { padding: 10px; }
+.all-documents-entry { align-items: center; margin-bottom: 12px; padding: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.document-item { display: block; padding: 4px; }
+.document-main-button { display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; padding: 6px; text-align: left; cursor: pointer; }
+.document-actions { display: flex; gap: 4px; padding: 2px 6px 4px 33px; opacity: 0; transition: opacity 140ms ease; }
+.document-item:hover .document-actions, .document-item:focus-within .document-actions, .document-item.selected .document-actions { opacity: 1; }
+.document-action-button { border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary); padding: 3px 5px; font-size: 10px; cursor: pointer; }
+.document-action-button:hover:not(:disabled) { background: rgba(0, 0, 0, .055); color: var(--text-primary); }
+.document-delete-button:hover:not(:disabled) { color: #8a5555; }
+.document-action-button:disabled { color: var(--text-tertiary); cursor: wait; }
+.delete-error { margin: 2px 6px 5px 33px; color: #8a5555; font-size: 10px; line-height: 1.4; }
 .document-icon { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; color: var(--text-secondary); }
 .document-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .document-filename, .document-title, .document-metadata { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

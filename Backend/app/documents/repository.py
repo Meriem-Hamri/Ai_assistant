@@ -1,12 +1,18 @@
 import json
 from pathlib import Path
+from threading import RLock
 
 
 class DocumentRepository:
     """
     Responsable du stockage et de la récupération
     des métadonnées des documents.
+
+    Les accès au fichier JSON sont protégés contre
+    les modifications concurrentes dans le processus.
     """
+
+    _lock = RLock()
 
     def __init__(
         self,
@@ -21,8 +27,9 @@ class DocumentRepository:
             exist_ok=True,
         )
 
-        if not self._file_path.exists():
-            self._write([])
+        with self._lock:
+            if not self._file_path.exists():
+                self._write([])
 
     def save(
         self,
@@ -32,26 +39,20 @@ class DocumentRepository:
         Enregistre les métadonnées d'un document.
         """
 
-        documents = self.get_all()
+        with self._lock:
+            documents = self._read()
 
-        documents.append(metadata)
+            documents.append(metadata)
 
-        self._write(documents)
+            self._write(documents)
 
     def get_all(self) -> list[dict]:
         """
         Retourne tous les documents enregistrés.
         """
 
-        try:
-            with self._file_path.open(
-                "r",
-                encoding="utf-8",
-            ) as file:
-                return json.load(file)
-
-        except json.JSONDecodeError:
-            return []
+        with self._lock:
+            return self._read()
 
     def get_by_id(
         self,
@@ -59,37 +60,16 @@ class DocumentRepository:
     ) -> dict | None:
         """
         Retourne un document à partir de son identifiant.
-
-        Retourne None si le document n'existe pas.
         """
 
-        documents = self.get_all()
+        with self._lock:
+            documents = self._read()
 
-        for document in documents:
-            if document.get("id") == document_id:
-                return document
+            for document in documents:
+                if document.get("id") == document_id:
+                    return document
 
         return None
-
-    def _write(
-        self,
-        documents: list[dict],
-    ) -> None:
-        """
-        Écrit les métadonnées dans le fichier JSON.
-        """
-
-        with self._file_path.open(
-            "w",
-            encoding="utf-8",
-        ) as file:
-            json.dump(
-                documents,
-                file,
-                ensure_ascii=False,
-                indent=4,
-                default=str,
-            )
 
     def delete(
         self,
@@ -102,17 +82,65 @@ class DocumentRepository:
         False sinon.
         """
 
-        documents = self.get_all()
+        with self._lock:
+            documents = self._read()
 
-        filtered_documents = [
-            document
-            for document in documents
-            if document.get("id") != document_id
-        ]
+            filtered_documents = [
+                document
+                for document in documents
+                if document.get("id") != document_id
+            ]
 
-        if len(filtered_documents) == len(documents):
-            return False
+            if len(filtered_documents) == len(documents):
+                return False
 
-        self._write(filtered_documents)
+            self._write(filtered_documents)
 
-        return True
+            return True
+
+    def _read(self) -> list[dict]:
+        """
+        Lit le fichier JSON.
+
+        Doit être appelée sous protection du lock.
+        """
+
+        try:
+            with self._file_path.open(
+                "r",
+                encoding="utf-8",
+            ) as file:
+                return json.load(file)
+
+        except json.JSONDecodeError:
+            return []
+
+    def _write(
+        self,
+        documents: list[dict],
+    ) -> None:
+        """
+        Écrit les métadonnées de manière atomique.
+
+        Doit être appelée sous protection du lock.
+        """
+
+        temporary_path = self._file_path.with_suffix(
+            ".tmp"
+        )
+
+        with temporary_path.open(
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                documents,
+                file,
+                ensure_ascii=False,
+                indent=4,
+                default=str,
+            )
+
+        temporary_path.replace(
+            self._file_path
+        )

@@ -54,21 +54,57 @@
         "tags": []
     },
     {
-        "id": "f70f06d3-2906-41fd-89a9-5b607d9546ab",
-        "filename": "DOCUMENT_DE_TEST_ASSISTANT_RAG.pdf",
-        "type": "pdf",
-        "page_count": 8,
-        "size": 90756,
-        "created_at": "2026-08-30 01:42:49.379578+00:00",
+        "id": "8acfa9ee-5f1d-449a-8ae6-381f816a0789",
+        "filename": "test_rag.docx",
+        "type": "docx",
+        "page_count": 1,
+        "size": 23762,
+        "created_at": "2026-08-30 23:12:33.704464+00:00",
         "status": "ready",
-        "path": "documents\\f70f06d3-2906-41fd-89a9-5b607d9546ab.pdf",
-        "chunk_count": 7,
+        "path": "C:\\Users\\merie_luskpw8\\Documents\\AssistantAI\\Backend\\documents\\8acfa9ee-5f1d-449a-8ae6-381f816a0789.docx",
+        "chunk_count": 4,
         "title": "Contrat de travail Développeuse Logicielle Junior",
         "category": "informatique",
         "year": 2026,
         "person": "Meriem El Amrani",
         "department": null,
         "document_type": "contrat",
-        "tags": []
+        "tags": [
+            "développement logiciel",
+            "salaire",
+            "horaires de travail",
+            "télétravail",
+            "matériel informatique",
+            "sécurité informatique",
+            "congé payé",
+            "poste junior"
+        ]
+    },
+    {
+        "id": "688c8aef-1e8f-4691-9602-6d5e1bc0190e",
+        "filename": "final.pdf",
+        "type": "pdf",
+        "page_count": 31,
+        "size": 3951241,
+        "created_at": "2026-08-31 00:25:19.747452+00:00",
+        "status": "ready",
+        "path": "C:\\Users\\merie_luskpw8\\Documents\\AssistantAI\\Backend\\documents\\688c8aef-1e8f-4691-9602-6d5e1bc0190e.pdf",
+        "chunk_count": 46,
+        "title": "Conception et développement d'un système de reporting pour la Trésorerie Générale du Royaume",
+        "category": "finance",
+        "year": null,
+        "person": "HAMRI Meriem",
+        "department": "Direction des Ressources et du Système d'Information (DRSI)",
+        "document_type": "rapport",
+        "tags": [
+            "reporting",
+            "trésorerie",
+            "finance publique",
+            "tableau de bord",
+            "système informatique",
+            "gestion des dépôts",
+            "analyse de données",
+            "interface utilisateur"
+        ]
     }
 ]

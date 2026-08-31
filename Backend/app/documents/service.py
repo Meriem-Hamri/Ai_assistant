@@ -9,7 +9,7 @@ from app.documents.indexer import DocumentIndexer
 from app.documents.repository import DocumentRepository
 from app.extraction.extraction_service import extract_document
 from app.metadata.extractor import MetadataExtractor
-
+from starlette.concurrency import run_in_threadpool
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BACKEND_DIR.parent
@@ -85,60 +85,29 @@ class DocumentService:
                 "Le fichier est vide."
             )
 
-        file_path.write_bytes(content)
+        await run_in_threadpool(
+            file_path.write_bytes,
+            content,
+        )
 
         try:
-            document = extract_document(
-                str(file_path)
+            return await run_in_threadpool(
+                self._process_document,
+                file_path,
+                document_id,
+                original_name,
+                extension,
+                len(content),
+                manual_metadata,
+                tags is not None,
             )
-
-            for page in document.pages:
-                page.text = clean_document(
-                    page.text
-                )
-
-            automatic_metadata = self._metadata_extractor.extract(
-                "\n\n".join(page.text for page in document.pages)
-            ).to_dict()
-            business_metadata = self._merge_business_metadata(
-                automatic_metadata=automatic_metadata,
-                manual_metadata=manual_metadata,
-                manual_tags_provided=tags is not None,
-            )
-
-            document.id = document_id
-            document.filename = original_name
-            document.metadata.update(business_metadata)
-
-            chunks = self._indexer.index(
-                document
-            )
-
-            metadata = {
-                "id": document_id,
-                "filename": original_name,
-                "type": extension.lstrip("."),
-                "page_count": len(document.pages),
-                "size": len(content),
-                "created_at": datetime.now(
-                    timezone.utc
-                ),
-                "status": "ready",
-                "path": str(file_path),
-                "chunk_count": len(chunks),
-                **business_metadata,
-            }
-
-            self._repository.save(
-                metadata
-            )
-
-            return metadata
 
         except Exception:
 
             if file_path.exists():
-                file_path.unlink()
+                await run_in_threadpool(
+                    file_path.unlink
+                )
 
             raise
 
@@ -289,3 +258,81 @@ class DocumentService:
         )
 
         return True
+
+    def _process_document(
+        self,
+        file_path: Path,
+        document_id: str,
+        original_name: str,
+        extension: str,
+        file_size: int,
+        manual_metadata: dict,
+        manual_tags_provided: bool,
+    ) -> dict:
+        """
+        Exécute le pipeline synchrone et coûteux
+        de traitement d'un document.
+
+        Cette méthode doit être appelée depuis un threadpool
+        afin de ne pas bloquer l'event loop FastAPI.
+        """
+
+        document = extract_document(
+            str(file_path)
+        )
+
+        for page in document.pages:
+            page.text = clean_document(
+                page.text
+            )
+
+        document_text = "\n\n".join(
+            page.text
+            for page in document.pages
+        )
+
+        automatic_metadata = (
+            self._metadata_extractor
+            .extract(document_text)
+            .to_dict()
+        )
+
+        business_metadata = (
+            self._merge_business_metadata(
+                automatic_metadata=automatic_metadata,
+                manual_metadata=manual_metadata,
+                manual_tags_provided=manual_tags_provided,
+            )
+        )
+
+        document.id = document_id
+        document.filename = original_name
+
+        document.metadata.update(
+            business_metadata
+        )
+
+        chunks = self._indexer.index(
+            document
+        )
+
+        metadata = {
+            "id": document_id,
+            "filename": original_name,
+            "type": extension.lstrip("."),
+            "page_count": len(document.pages),
+            "size": file_size,
+            "created_at": datetime.now(
+                timezone.utc
+            ),
+            "status": "ready",
+            "path": str(file_path),
+            "chunk_count": len(chunks),
+            **business_metadata,
+        }
+
+        self._repository.save(
+            metadata
+        )
+
+        return metadata
