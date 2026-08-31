@@ -1,7 +1,10 @@
 import pytest
 
 from app.prompting.config import PromptConfig
-from app.prompting.prompt_builder import PromptBuilder
+from app.prompting.prompt_builder import (
+    CITATION_OUTPUT_INSTRUCTION,
+    PromptBuilder,
+)
 from app.vectorstore.search_result import SearchResult
 
 
@@ -102,8 +105,19 @@ def test_multiple_results():
 
     assert "Premier passage." in prompt
     assert "Deuxième passage." in prompt
-    assert "[Source 1]" in prompt
-    assert "[Source 2]" in prompt
+    assert "[SOURCE_1]" in prompt
+    assert "[SOURCE_2]" in prompt
+
+
+def test_prompt_requests_structured_answer_with_used_sources():
+    prompt = PromptBuilder().build(
+        question="Quelle est la duree ?",
+        results=[create_result()],
+    )
+
+    assert "objet JSON valide" in prompt
+    assert "'answer'" in prompt
+    assert "'used_sources'" in prompt
 
 
 def test_empty_results():
@@ -179,7 +193,11 @@ def test_context_length_limit():
     )
 
     assert "A" * 500 not in prompt
-    assert len(prompt) <= len(config.system_instruction) + 250
+    assert len(prompt) <= (
+        len(config.system_instruction)
+        + len(CITATION_OUTPUT_INSTRUCTION)
+        + 250
+    )
 
 
 def test_custom_configuration():

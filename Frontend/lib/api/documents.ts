@@ -21,6 +21,24 @@ export async function deleteDocument(documentId: string): Promise<void> {
   });
 }
 
-export function getDocumentFileUrl(documentId: string): string {
-  return getApiUrl(`/documents/${documentId}/file`);
+interface DocumentFileUrlOptions {
+  documentName?: string;
+  pageNumber?: number | null;
+}
+
+export function getDocumentFileUrl(
+  documentId: string,
+  options?: DocumentFileUrlOptions
+): string {
+  const fileUrl = getApiUrl(
+    `/documents/${encodeURIComponent(documentId)}/file`
+  );
+  const pageNumber = options?.pageNumber;
+  const isPdf = options?.documentName?.toLowerCase().endsWith(".pdf");
+
+  if (isPdf && pageNumber !== null && pageNumber !== undefined) {
+    return `${fileUrl}#page=${pageNumber}`;
+  }
+
+  return fileUrl;
 }

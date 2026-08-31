@@ -9,6 +9,20 @@ from app.prompting.utils import build_context
 from app.vectorstore.search_result import SearchResult
 
 
+CITATION_OUTPUT_INSTRUCTION = (
+    "Retourne uniquement un objet JSON valide avec exactement deux champs : "
+    "'answer', contenant la reponse destinee a l'utilisateur, et "
+    "'used_sources', contenant la liste des identifiants SOURCE_N des seuls "
+    "passages qui soutiennent effectivement la reponse. "
+    "N'inclus jamais un passage seulement parce qu'il apparait dans le contexte. "
+    "Si l'information n'est pas disponible, utilise la reponse de fallback "
+    "dans 'answer' et une liste 'used_sources' vide. "
+    "Format exact : {\"answer\": \"...\", "
+    "\"used_sources\": [\"SOURCE_1\"]}. "
+    "N'ajoute ni bloc Markdown, ni commentaire, ni raisonnement."
+)
+
+
 class PromptBuilder:
     """
     Construit le prompt envoyé au modèle de langage
@@ -56,7 +70,10 @@ class PromptBuilder:
         )
 
         return PROMPT_TEMPLATE.format(
-            system_instruction=self._config.system_instruction,
+            system_instruction=(
+                f"{self._config.system_instruction} "
+                f"{CITATION_OUTPUT_INSTRUCTION}"
+            ),
             context_header=CONTEXT_HEADER,
             context=context,
             question_header=QUESTION_HEADER,

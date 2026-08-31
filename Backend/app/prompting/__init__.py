@@ -31,7 +31,7 @@ def format_search_result(
         )
 
     return (
-        f"[Source {source_number}]\n"
+        f"[SOURCE_{source_number}]\n"
         f"{result.text}\n"
     )
 

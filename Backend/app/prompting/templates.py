@@ -12,7 +12,7 @@ QUESTION_HEADER = "QUESTION"
 ANSWER_HEADER = "RÉPONSE"
 
 
-SOURCE_TEMPLATE = """[Source {source_number}]
+SOURCE_TEMPLATE = """[SOURCE_{source_number}]
 Nom du fichier : {document_name}
 Page : {page_number}
 Contenu du passage :

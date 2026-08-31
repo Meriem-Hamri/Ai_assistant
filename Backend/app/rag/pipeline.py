@@ -1,3 +1,8 @@
+import json
+import logging
+import re
+import time
+
 from app.embeddings.embedding_service import EmbeddingService
 from app.llm.base import BaseLLM
 from app.prompting.prompt_builder import PromptBuilder
@@ -12,7 +17,9 @@ from app.rag.exceptions import (
     RAGRetrievalError,
 )
 from app.rag.response import RAGResponse, Source
-import time
+
+
+logger = logging.getLogger(__name__)
 
 class RAGPipeline:
     """
@@ -140,9 +147,23 @@ class RAGPipeline:
 
         # LLM
         t0 = time.perf_counter()
-        answer = self._generate_answer(prompt)
+        generated_content = self._generate_answer(prompt)
         print(f"[TIME] LLM : {time.perf_counter() - t0:.2f}s")
-        sources = self._build_sources(selected_results)
+        answer, used_source_ids = self._parse_generation(generated_content)
+
+        if self._is_no_results_answer(answer):
+            sources = []
+        elif used_source_ids is None:
+            logger.warning(
+                "Impossible de parser les citations du LLM; "
+                "aucune source ne sera exposee."
+            )
+            sources = []
+        else:
+            sources = self._build_used_sources(
+                results=selected_results,
+                used_source_ids=used_source_ids,
+            )
 
         print(
             f"[TIME] TOTAL : "
@@ -360,6 +381,78 @@ class RAGPipeline:
             raise RAGGenerationError(
                 "Impossible de générer la réponse avec le LLM."
             ) from exc
+
+    @staticmethod
+    def _parse_generation(
+        generated_content: str,
+    ) -> tuple[str, list[str] | None]:
+        """Extract the public answer and citation IDs from the LLM JSON."""
+
+        decoder = json.JSONDecoder()
+
+        for match in re.finditer(r"\{", generated_content):
+            try:
+                payload, _ = decoder.raw_decode(
+                    generated_content[match.start():]
+                )
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(payload, dict):
+                continue
+
+            answer = payload.get("answer")
+            used_sources = payload.get("used_sources")
+
+            if not isinstance(answer, str) or not isinstance(
+                used_sources, list
+            ):
+                continue
+
+            if not all(isinstance(source_id, str) for source_id in used_sources):
+                continue
+
+            return answer.strip(), used_sources
+
+        return generated_content.strip(), None
+
+    @classmethod
+    def _is_no_results_answer(cls, answer: str) -> bool:
+        """Recognize the configured fallback despite minor punctuation changes."""
+
+        def normalize(value: str) -> str:
+            return " ".join(
+                value.casefold().strip().rstrip(".!? ").split()
+            )
+
+        return normalize(answer) == normalize(cls.NO_RESULTS_MESSAGE)
+
+    @classmethod
+    def _build_used_sources(
+        cls,
+        results: list[SearchResult],
+        used_source_ids: list[str],
+    ) -> list[Source]:
+        """Map valid citation IDs to real passages, preserving cited order."""
+
+        result_by_source_id = {
+            f"SOURCE_{index}": result
+            for index, result in enumerate(results, start=1)
+        }
+        seen_source_ids: set[str] = set()
+        used_results: list[SearchResult] = []
+
+        for source_id in used_source_ids:
+            normalized_source_id = source_id.strip().upper()
+            result = result_by_source_id.get(normalized_source_id)
+
+            if result is None or normalized_source_id in seen_source_ids:
+                continue
+
+            seen_source_ids.add(normalized_source_id)
+            used_results.append(result)
+
+        return cls._build_sources(used_results)
 
     @staticmethod
     def _build_sources(

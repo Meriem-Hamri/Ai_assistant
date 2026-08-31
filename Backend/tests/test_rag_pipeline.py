@@ -78,13 +78,14 @@ def create_result(
     document_name: str = "contrat.pdf",
     document_id: str = "doc-1",
     page_number: int = 1,
+    chunk_id: str = "chunk-1",
 ) -> SearchResult:
     """
     Crée un SearchResult pour les tests.
     """
 
     return SearchResult(
-        chunk_id="chunk-1",
+        chunk_id=chunk_id,
         text=text,
         distance=0.05,
         document_id=document_id,
@@ -362,7 +363,10 @@ def test_answer_is_returned():
         _,
     ) = create_pipeline(
         results=[create_result()],
-        llm_answer=expected_answer,
+        llm_answer=(
+            '{"answer":"Le contrat dure trois mois.",'
+            '"used_sources":["SOURCE_1"]}'
+        ),
     )
 
     response = pipeline.answer(
@@ -385,7 +389,11 @@ def test_sources_are_created_from_search_results():
         _,
         _,
     ) = create_pipeline(
-        results=[result]
+        results=[result],
+        llm_answer=(
+            '{"answer":"Le contrat dure trois mois.",'
+            '"used_sources":["SOURCE_1"]}'
+        ),
     )
 
     response = pipeline.answer(
@@ -402,6 +410,119 @@ def test_sources_are_created_from_search_results():
     assert source.chunk_id == "chunk-1"
     assert source.excerpt == result.text
     assert source.distance == 0.05
+
+
+def test_only_one_used_source_is_returned_from_ten_candidates():
+    results = [
+        create_result(
+            text=f"Candidate passage {index}. " + "A" * 120,
+            page_number=index,
+            chunk_id=f"chunk-{index}",
+        )
+        for index in range(1, 11)
+    ]
+    pipeline, *_ = create_pipeline(
+        results=results,
+        top_k=10,
+        llm_answer=(
+            '{"answer":"Answer from the third passage.",'
+            '"used_sources":["SOURCE_3"]}'
+        ),
+    )
+
+    response = pipeline.answer("Question")
+
+    assert len(response.sources) == 1
+    assert response.sources[0].excerpt == results[2].text
+
+
+def test_multiple_used_sources_preserve_model_order():
+    results = [
+        create_result(
+            text=f"Candidate passage {index}. " + "A" * 120,
+            page_number=index,
+            chunk_id=f"chunk-{index}",
+        )
+        for index in range(1, 6)
+    ]
+    pipeline, *_ = create_pipeline(
+        results=results,
+        top_k=5,
+        llm_answer=(
+            '{"answer":"Combined answer.",'
+            '"used_sources":["SOURCE_2","SOURCE_5"]}'
+        ),
+    )
+
+    response = pipeline.answer("Question")
+
+    assert [source.excerpt for source in response.sources] == [
+        results[1].text,
+        results[4].text,
+    ]
+
+
+def test_fallback_answer_always_has_no_sources():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer=(
+            '{"answer":"Information non disponible dans les documents.",'
+            '"used_sources":["SOURCE_1"]}'
+        ),
+    )
+
+    assert pipeline.answer("Question").sources == []
+
+
+def test_unknown_source_id_is_ignored():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer=(
+            '{"answer":"Answer.",'
+            '"used_sources":["SOURCE_999"]}'
+        ),
+    )
+
+    assert pipeline.answer("Question").sources == []
+
+
+def test_invalid_citation_payload_does_not_expose_retrieval_results():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer="Normal answer without JSON",
+    )
+
+    response = pipeline.answer("Question")
+
+    assert response.answer == "Normal answer without JSON"
+    assert response.sources == []
+
+
+def test_duplicate_source_ids_are_returned_once():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer=(
+            '{"answer":"Answer.",'
+            '"used_sources":["SOURCE_1","SOURCE_1"]}'
+        ),
+    )
+
+    assert len(pipeline.answer("Question").sources) == 1
+
+
+def test_json_inside_markdown_fence_is_parsed():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer=(
+            '```json\n{"answer":"Answer.",'
+            '"used_sources":["SOURCE_1"]}\n```'
+        ),
+    )
+
+    response = pipeline.answer("Question")
+
+    assert response.answer == "Answer."
+    assert len(response.sources) == 1
 
 
 def test_no_results_returns_message_without_calling_llm():
