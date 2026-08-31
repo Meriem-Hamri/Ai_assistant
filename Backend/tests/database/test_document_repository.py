@@ -146,3 +146,80 @@ def test_delete_removes_existing_document_and_handles_unknown_ids():
         assert repository.delete("abc") is False
     finally:
         cleanup_documents(metadata["id"])
+
+
+def test_update_applies_lifecycle_and_business_fields():
+    repository = DocumentRepository()
+    old_updated_at = datetime.now(timezone.utc) - timedelta(days=1)
+    metadata = build_metadata(
+        status="queued",
+        error_message=None,
+        title=None,
+        category=None,
+        year=None,
+        person=None,
+        department=None,
+        document_type=None,
+        tags=None,
+        page_count=None,
+        chunk_count=None,
+        updated_at=old_updated_at,
+    )
+    updates = {
+        "status": "ready",
+        "error_message": None,
+        "title": "Rapport annuel",
+        "category": "Finance",
+        "year": 2026,
+        "person": "Nadia",
+        "department": "Comptabilité",
+        "document_type": "Rapport",
+        "tags": ["annuel", "finance"],
+        "page_count": 12,
+        "chunk_count": 24,
+    }
+
+    try:
+        repository.save(metadata)
+
+        assert repository.update(metadata["id"], updates) is True
+
+        result = repository.get_by_id(metadata["id"])
+        assert result is not None
+        for field, value in updates.items():
+            assert result[field] == value
+        assert result["updated_at"] > old_updated_at
+    finally:
+        cleanup_documents(metadata["id"])
+
+
+def test_update_rejects_invalid_and_unknown_ids():
+    repository = DocumentRepository()
+
+    assert repository.update("abc", {"status": "ready"}) is False
+    assert repository.update(str(uuid4()), {"status": "ready"}) is False
+
+
+def test_update_ignores_forbidden_fields():
+    repository = DocumentRepository()
+    metadata = build_metadata(status="queued")
+    forbidden_updates = {
+        "id": str(uuid4()),
+        "filename": "modifie.pdf",
+        "type": "docx",
+        "size": 1,
+        "path": "documents/modifie.pdf",
+        "created_at": datetime.now(timezone.utc) - timedelta(days=30),
+    }
+
+    try:
+        repository.save(metadata)
+
+        assert repository.update(metadata["id"], forbidden_updates) is True
+
+        result = repository.get_by_id(metadata["id"])
+        assert result is not None
+        for field in forbidden_updates:
+            assert result[field] == metadata[field]
+    finally:
+        cleanup_documents(metadata["id"])

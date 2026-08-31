@@ -10,6 +10,20 @@ from app.database.session import SessionLocal
 class DocumentRepository:
     """Persiste les métadonnées des documents dans PostgreSQL."""
 
+    _UPDATABLE_FIELDS = {
+        "status",
+        "error_message",
+        "title",
+        "category",
+        "year",
+        "person",
+        "department",
+        "document_type",
+        "tags",
+        "page_count",
+        "chunk_count",
+    }
+
     def save(self, metadata: dict) -> None:
         """Enregistre les métadonnées d'un document."""
         document = DocumentModel(
@@ -65,6 +79,28 @@ class DocumentRepository:
             if document is None:
                 return None
             return self._to_dict(document)
+
+    def update(self, document_id: str, updates: dict) -> bool:
+        """Met à jour uniquement les champs modifiables d'un document."""
+        parsed_id = self._parse_id(document_id)
+        if parsed_id is None:
+            return False
+
+        with SessionLocal() as session:
+            try:
+                document = session.get(DocumentModel, parsed_id)
+                if document is None:
+                    return False
+
+                for field, value in updates.items():
+                    if field in self._UPDATABLE_FIELDS:
+                        setattr(document, field, value)
+
+                session.commit()
+                return True
+            except Exception:
+                session.rollback()
+                raise
 
     def delete(self, document_id: str) -> bool:
         """Supprime une ligne de métadonnées si elle existe."""

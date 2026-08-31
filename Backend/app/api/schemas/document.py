@@ -7,10 +7,12 @@ class DocumentResponse(BaseModel):
     id: str
     filename: str
     type: str
-    page_count: int
+    page_count: int | None = None
     size: int
     created_at: datetime
     status: str
+    error_message: str | None = None
+    chunk_count: int | None = None
     title: str | None = None
     category: str | None = None
     year: int | None = None

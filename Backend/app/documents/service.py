@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -15,6 +16,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BACKEND_DIR.parent
 DOCUMENTS_DIR = BACKEND_DIR / "documents"
 DOCUMENTS_DIR.mkdir(exist_ok=True)
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentDeletionConflictError(Exception):
+    """Le statut courant du document interdit sa suppression."""
 
 
 class DocumentService:
@@ -90,23 +97,88 @@ class DocumentService:
             content,
         )
 
+        initial_metadata = {
+            "id": document_id,
+            "filename": original_name,
+            "type": extension.lstrip("."),
+            "size": len(content),
+            "path": str(file_path),
+            "created_at": datetime.now(timezone.utc),
+            "status": "queued",
+            "error_message": None,
+            "page_count": None,
+            "chunk_count": None,
+            **manual_metadata,
+            "tags": manual_metadata["tags"] if tags is not None else None,
+        }
+
         try:
-            return await run_in_threadpool(
+            await run_in_threadpool(
+                self._repository.save,
+                initial_metadata,
+            )
+        except Exception:
+            if file_path.exists():
+                await run_in_threadpool(file_path.unlink)
+            raise
+
+        try:
+            processing_updated = await run_in_threadpool(
+                self._repository.update,
+                document_id,
+                {"status": "processing", "error_message": None},
+            )
+            if not processing_updated:
+                raise RuntimeError(
+                    "Le document enregistré est introuvable."
+                )
+
+            processing_result = await run_in_threadpool(
                 self._process_document,
                 file_path,
                 document_id,
                 original_name,
-                extension,
-                len(content),
                 manual_metadata,
                 tags is not None,
             )
 
-        except Exception:
+            ready_updates = {
+                "status": "ready",
+                "error_message": None,
+                **processing_result,
+            }
+            ready_updated = await run_in_threadpool(
+                self._repository.update,
+                document_id,
+                ready_updates,
+            )
+            if not ready_updated:
+                raise RuntimeError(
+                    "Le document traité est introuvable."
+                )
 
-            if file_path.exists():
+            return {**initial_metadata, **ready_updates}
+
+        except Exception:
+            logger.exception(
+                "Échec du traitement du document %s.",
+                document_id,
+            )
+            try:
                 await run_in_threadpool(
-                    file_path.unlink
+                    self._repository.update,
+                    document_id,
+                    {
+                        "status": "error",
+                        "error_message": (
+                            "Le traitement du document a échoué."
+                        ),
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "Impossible d'enregistrer l'échec du document %s.",
+                    document_id,
                 )
 
             raise
@@ -244,6 +316,12 @@ class DocumentService:
         if metadata is None:
             return False
 
+        if metadata["status"] not in {"ready", "error"}:
+            raise DocumentDeletionConflictError(
+                "Un document en attente ou en cours de traitement "
+                "ne peut pas être supprimé."
+            )
+
         self._vector_store.delete_document(
             document_id
         )
@@ -264,8 +342,6 @@ class DocumentService:
         file_path: Path,
         document_id: str,
         original_name: str,
-        extension: str,
-        file_size: int,
         manual_metadata: dict,
         manual_tags_provided: bool,
     ) -> dict:
@@ -316,23 +392,8 @@ class DocumentService:
             document
         )
 
-        metadata = {
-            "id": document_id,
-            "filename": original_name,
-            "type": extension.lstrip("."),
+        return {
             "page_count": len(document.pages),
-            "size": file_size,
-            "created_at": datetime.now(
-                timezone.utc
-            ),
-            "status": "ready",
-            "path": str(file_path),
             "chunk_count": len(chunks),
             **business_metadata,
         }
-
-        self._repository.save(
-            metadata
-        )
-
-        return metadata

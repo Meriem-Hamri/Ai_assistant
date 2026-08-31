@@ -16,7 +16,10 @@ from app.api.dependencies import (
 from app.api.schemas.document import DocumentResponse
 from app.documents.indexer import DocumentIndexer
 from app.documents.repository import DocumentRepository
-from app.documents.service import DocumentService
+from app.documents.service import (
+    DocumentDeletionConflictError,
+    DocumentService,
+)
 
 
 router = APIRouter(
@@ -173,9 +176,15 @@ def delete_document(
         get_document_service
     ),
 ):
-    deleted = service.delete_document(
-        document_id
-    )
+    try:
+        deleted = service.delete_document(
+            document_id
+        )
+    except DocumentDeletionConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
 
     if not deleted:
         raise HTTPException(
