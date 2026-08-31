@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.database.models.document import DocumentModel
 from app.database.session import SessionLocal
+from app.documents.processing_input import DocumentProcessingInput
 
 
 class DocumentRepository:
@@ -79,6 +80,33 @@ class DocumentRepository:
             if document is None:
                 return None
             return self._to_dict(document)
+
+    def get_for_processing(
+        self,
+        document_id: str,
+    ) -> DocumentProcessingInput | None:
+        """Retourne le contrat interne en préservant la valeur SQL de tags."""
+        parsed_id = self._parse_id(document_id)
+        if parsed_id is None:
+            return None
+
+        with SessionLocal() as session:
+            document = session.get(DocumentModel, parsed_id)
+            if document is None:
+                return None
+            return DocumentProcessingInput(
+                id=str(document.id),
+                filename=document.filename,
+                path=document.path,
+                status=document.status,
+                title=document.title,
+                category=document.category,
+                year=document.year,
+                person=document.person,
+                department=document.department,
+                document_type=document.document_type,
+                tags=document.tags,
+            )
 
     def update(self, document_id: str, updates: dict) -> bool:
         """Met à jour uniquement les champs modifiables d'un document."""

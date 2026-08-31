@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+import pytest
+from sqlalchemy import null, select, update
 
 from app.database.models import DocumentModel
 from app.database.session import SessionLocal
 from app.api.schemas.document import DocumentResponse
+from app.documents.processing_input import DocumentProcessingInput
 from app.documents.repository import DocumentRepository
 
 
@@ -107,6 +109,60 @@ def test_get_by_id_returns_contract_and_handles_unknown_ids():
         assert repository.get_by_id("abc") is None
     finally:
         cleanup_documents(metadata["id"])
+
+
+@pytest.mark.parametrize(
+    ("persisted_tags", "expected_processing_tags"),
+    [
+        (None, None),
+        ([], []),
+        (["audit"], ["audit"]),
+    ],
+)
+def test_get_for_processing_preserves_tags_intent(
+    persisted_tags,
+    expected_processing_tags,
+):
+    repository = DocumentRepository()
+    metadata = build_metadata(tags=persisted_tags)
+
+    try:
+        repository.save(metadata)
+        if persisted_tags is None:
+            with SessionLocal() as session:
+                session.execute(
+                    update(DocumentModel)
+                    .where(DocumentModel.id == UUID(metadata["id"]))
+                    .values(tags=null())
+                )
+                session.commit()
+
+        public_document = repository.get_by_id(metadata["id"])
+        processing_input = repository.get_for_processing(metadata["id"])
+
+        assert public_document is not None
+        assert public_document["tags"] == (persisted_tags or [])
+        assert isinstance(processing_input, DocumentProcessingInput)
+        assert processing_input.id == metadata["id"]
+        assert processing_input.filename == metadata["filename"]
+        assert processing_input.path == metadata["path"]
+        assert processing_input.status == metadata["status"]
+        assert processing_input.title == metadata["title"]
+        assert processing_input.category == metadata["category"]
+        assert processing_input.year == metadata["year"]
+        assert processing_input.person == metadata["person"]
+        assert processing_input.department == metadata["department"]
+        assert processing_input.document_type == metadata["document_type"]
+        assert processing_input.tags == expected_processing_tags
+    finally:
+        cleanup_documents(metadata["id"])
+
+
+def test_get_for_processing_handles_invalid_and_unknown_ids():
+    repository = DocumentRepository()
+
+    assert repository.get_for_processing("abc") is None
+    assert repository.get_for_processing(str(uuid4())) is None
 
 
 def test_get_all_returns_dicts_ordered_by_newest_first():
