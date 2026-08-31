@@ -14,10 +14,10 @@ def test_documents_table_has_expected_columns():
 
     expected_columns = {
         "id",
-        "original_name",
-        "stored_name",
-        "extension",
-        "file_size",
+        "filename",
+        "type",
+        "size",
+        "path",
         "status",
         "error_message",
         "title",
@@ -39,12 +39,12 @@ def test_documents_table_has_expected_columns():
 def test_document_can_be_inserted_and_read():
     session = SessionLocal()
 
-    stored_name = f"db-test-{uuid.uuid4()}.pdf"
+    path = f"documents/db-test-{uuid.uuid4()}.pdf"
     document = DocumentModel(
-        original_name="database-test.pdf",
-        stored_name=stored_name,
-        extension=".pdf",
-        file_size=1234,
+        filename="database-test.pdf",
+        type="pdf",
+        size=1234,
+        path=path,
         status="queued",
     )
 
@@ -59,10 +59,10 @@ def test_document_can_be_inserted_and_read():
             )
         ).scalar_one()
 
-        assert result.original_name == "database-test.pdf"
-        assert result.stored_name == stored_name
-        assert result.extension == ".pdf"
-        assert result.file_size == 1234
+        assert result.filename == "database-test.pdf"
+        assert result.type == "pdf"
+        assert result.size == 1234
+        assert result.path == path
         assert result.status == "queued"
         assert result.id is not None
         assert result.created_at is not None
@@ -73,7 +73,7 @@ def test_document_can_be_inserted_and_read():
 
         persisted_document = session.execute(
             select(DocumentModel).where(
-                DocumentModel.stored_name == stored_name
+                DocumentModel.path == path
             )
         ).scalar_one_or_none()
 

@@ -1,146 +1,120 @@
-import json
 from pathlib import Path
-from threading import RLock
+from uuid import UUID
+
+from sqlalchemy import select
+
+from app.database.models.document import DocumentModel
+from app.database.session import SessionLocal
 
 
 class DocumentRepository:
-    """
-    Responsable du stockage et de la récupération
-    des métadonnées des documents.
+    """Persiste les métadonnées des documents dans PostgreSQL."""
 
-    Les accès au fichier JSON sont protégés contre
-    les modifications concurrentes dans le processus.
-    """
-
-    _lock = RLock()
-
-    def __init__(
-        self,
-        file_path: Path = Path(
-            "data/documents_metadata.json"
-        ),
-    ) -> None:
-        self._file_path = file_path
-
-        self._file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
+    def save(self, metadata: dict) -> None:
+        """Enregistre les métadonnées d'un document."""
+        document = DocumentModel(
+            id=UUID(metadata["id"]),
+            filename=metadata["filename"],
+            type=metadata["type"],
+            size=metadata["size"],
+            path=self._normalize_path(metadata["path"]),
+            status=metadata["status"],
+            error_message=metadata.get("error_message"),
+            title=metadata.get("title"),
+            category=metadata.get("category"),
+            year=metadata.get("year"),
+            person=metadata.get("person"),
+            department=metadata.get("department"),
+            document_type=metadata.get("document_type"),
+            tags=metadata.get("tags"),
+            page_count=metadata.get("page_count"),
+            chunk_count=metadata.get("chunk_count"),
         )
 
-        with self._lock:
-            if not self._file_path.exists():
-                self._write([])
+        if metadata.get("created_at") is not None:
+            document.created_at = metadata["created_at"]
+        if metadata.get("updated_at") is not None:
+            document.updated_at = metadata["updated_at"]
 
-    def save(
-        self,
-        metadata: dict,
-    ) -> None:
-        """
-        Enregistre les métadonnées d'un document.
-        """
-
-        with self._lock:
-            documents = self._read()
-
-            documents.append(metadata)
-
-            self._write(documents)
+        with SessionLocal() as session:
+            try:
+                session.add(document)
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
 
     def get_all(self) -> list[dict]:
-        """
-        Retourne tous les documents enregistrés.
-        """
+        """Retourne les documents, du plus récent au plus ancien."""
+        with SessionLocal() as session:
+            documents = session.scalars(
+                select(DocumentModel).order_by(
+                    DocumentModel.created_at.desc()
+                )
+            ).all()
+            return [self._to_dict(document) for document in documents]
 
-        with self._lock:
-            return self._read()
+    def get_by_id(self, document_id: str) -> dict | None:
+        """Retourne un document à partir de son identifiant."""
+        parsed_id = self._parse_id(document_id)
+        if parsed_id is None:
+            return None
 
-    def get_by_id(
-        self,
-        document_id: str,
-    ) -> dict | None:
-        """
-        Retourne un document à partir de son identifiant.
-        """
+        with SessionLocal() as session:
+            document = session.get(DocumentModel, parsed_id)
+            if document is None:
+                return None
+            return self._to_dict(document)
 
-        with self._lock:
-            documents = self._read()
+    def delete(self, document_id: str) -> bool:
+        """Supprime une ligne de métadonnées si elle existe."""
+        parsed_id = self._parse_id(document_id)
+        if parsed_id is None:
+            return False
 
-            for document in documents:
-                if document.get("id") == document_id:
-                    return document
+        with SessionLocal() as session:
+            try:
+                document = session.get(DocumentModel, parsed_id)
+                if document is None:
+                    return False
 
-        return None
+                session.delete(document)
+                session.commit()
+                return True
+            except Exception:
+                session.rollback()
+                raise
 
-    def delete(
-        self,
-        document_id: str,
-    ) -> bool:
-        """
-        Supprime les métadonnées d'un document.
-
-        Retourne True si le document existait,
-        False sinon.
-        """
-
-        with self._lock:
-            documents = self._read()
-
-            filtered_documents = [
-                document
-                for document in documents
-                if document.get("id") != document_id
-            ]
-
-            if len(filtered_documents) == len(documents):
-                return False
-
-            self._write(filtered_documents)
-
-            return True
-
-    def _read(self) -> list[dict]:
-        """
-        Lit le fichier JSON.
-
-        Doit être appelée sous protection du lock.
-        """
-
+    @staticmethod
+    def _parse_id(document_id: str) -> UUID | None:
         try:
-            with self._file_path.open(
-                "r",
-                encoding="utf-8",
-            ) as file:
-                return json.load(file)
+            return UUID(document_id)
+        except (AttributeError, TypeError, ValueError):
+            return None
 
-        except json.JSONDecodeError:
-            return []
+    @staticmethod
+    def _normalize_path(stored_path: str) -> str:
+        return (Path("documents") / Path(stored_path).name).as_posix()
 
-    def _write(
-        self,
-        documents: list[dict],
-    ) -> None:
-        """
-        Écrit les métadonnées de manière atomique.
-
-        Doit être appelée sous protection du lock.
-        """
-
-        temporary_path = self._file_path.with_suffix(
-            ".tmp"
-        )
-
-        with temporary_path.open(
-            "w",
-            encoding="utf-8",
-        ) as file:
-            json.dump(
-                documents,
-                file,
-                ensure_ascii=False,
-                indent=4,
-                default=str,
-            )
-
-        temporary_path.replace(
-            self._file_path
-        )
+    @staticmethod
+    def _to_dict(document: DocumentModel) -> dict:
+        return {
+            "id": str(document.id),
+            "filename": document.filename,
+            "type": document.type,
+            "size": document.size,
+            "path": document.path,
+            "status": document.status,
+            "error_message": document.error_message,
+            "title": document.title,
+            "category": document.category,
+            "year": document.year,
+            "person": document.person,
+            "department": document.department,
+            "document_type": document.document_type,
+            "tags": document.tags or [],
+            "page_count": document.page_count,
+            "chunk_count": document.chunk_count,
+            "created_at": document.created_at,
+            "updated_at": document.updated_at,
+        }
