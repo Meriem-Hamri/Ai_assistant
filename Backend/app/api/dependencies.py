@@ -1,4 +1,4 @@
-from pathlib import Path
+import os
 
 from app.embeddings.embedding_service import EmbeddingService
 from app.vectorstore.chroma_store import ChromaStore
@@ -16,7 +16,8 @@ _embedding_service = EmbeddingService()
 
 _vector_store = ChromaStore(
     config=VectorStoreConfig(
-        persist_directory=Path("data/chroma"),
+        host=os.getenv("CHROMA_HOST", "localhost"),
+        port=int(os.getenv("CHROMA_PORT", "8001")),
         collection_name="documents",
     )
 )

@@ -1,4 +1,4 @@
-from pathlib import Path
+from chromadb import EphemeralClient
 
 from app.extraction.extraction_service import extract_document
 from app.cleaning.cleaner import clean_document
@@ -11,7 +11,6 @@ from app.llm.qwen_client import QwenClient
 from app.rag.config import RAGConfig
 from app.rag.pipeline import RAGPipeline
 import tempfile
-from pathlib import Path
 
 
 # ============================================================
@@ -53,12 +52,14 @@ def create_pipeline():
     embedding_service = EmbeddingService()
 
     vector_store_config = VectorStoreConfig(
-        persist_directory=Path("data/chroma_db"),
+        host="localhost",
+        port=8001,
         collection_name="test_documents",
     )
 
     vector_store = ChromaStore(
-        vector_store_config
+        vector_store_config,
+        client=EphemeralClient(),
     )
 
     vector_store.clear()

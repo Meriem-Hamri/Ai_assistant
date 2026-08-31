@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,8 @@ from app.vectorstore.config import VectorStoreConfig
 
 store = ChromaStore(
     config=VectorStoreConfig(
-        persist_directory=BACKEND_DIR / "data" / "chroma",
+        host=os.getenv("CHROMA_HOST", "localhost"),
+        port=int(os.getenv("CHROMA_PORT", "8001")),
         collection_name="documents",
     )
 )

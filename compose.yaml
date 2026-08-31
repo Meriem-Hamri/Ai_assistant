@@ -22,5 +22,18 @@ services:
 
     restart: unless-stopped
 
+  chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: assistantai-chroma
+
+    ports:
+      - "8001:8000"
+
+    volumes:
+      - chroma_data:/data
+
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  chroma_data:

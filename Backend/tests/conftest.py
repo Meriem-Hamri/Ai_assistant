@@ -1,9 +1,11 @@
 import os
+from uuid import uuid4
 
 # La suite doit utiliser le modèle BGE-M3 déjà présent dans le cache local.
 os.environ["HF_HUB_OFFLINE"] = "1"
 
 import pytest
+from chromadb import EphemeralClient
 
 from app.embeddings.embedding_service import EmbeddingService
 
@@ -16,16 +18,8 @@ def embedding_service():
     """
     return EmbeddingService()
 
-import shutil
-from pathlib import Path
-
-import pytest
-import gc
 from app.vectorstore.chroma_store import ChromaStore
 from app.vectorstore.config import VectorStoreConfig
-
-
-TEST_DB = Path("tests/chroma_db")
 
 
 @pytest.fixture
@@ -34,16 +28,16 @@ def store():
     Crée un ChromaStore propre pour chaque test.
     """
 
+    client = EphemeralClient()
     config = VectorStoreConfig(
-        persist_directory=TEST_DB,
-        collection_name="test_collection",
+        host="localhost",
+        port=8001,
+        collection_name=f"test_collection_{uuid4().hex}",
     )
 
-    store = ChromaStore(config)
+    store = ChromaStore(config, client=client)
 
     yield store
 
-    store.clear()
+    client.delete_collection(config.collection_name)
     store.close()
-
-    gc.collect()

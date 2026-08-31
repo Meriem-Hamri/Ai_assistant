@@ -6,7 +6,7 @@ from app.vectorstore.chroma_store import ChromaStore
 from app.vectorstore.config import VectorStoreConfig
 from app.llm.qwen_client import QwenClient
 from app.prompting.prompt_builder import PromptBuilder
-from pathlib import Path
+from chromadb import EphemeralClient
 
 
 def test_rag_end_to_end():
@@ -19,9 +19,11 @@ def test_rag_end_to_end():
 
     vector_store = ChromaStore(
         VectorStoreConfig(
-            persist_directory=Path("data/test_rag_e2e"),
+            host="localhost",
+            port=8001,
             collection_name="rag_e2e_collection",
-        )
+        ),
+        client=EphemeralClient(),
     )
 
     prompt_builder = PromptBuilder()
