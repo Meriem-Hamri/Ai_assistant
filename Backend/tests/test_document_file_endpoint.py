@@ -1,23 +1,8 @@
-import os
 from pathlib import Path
 
-from chromadb import EphemeralClient
 from fastapi.testclient import TestClient
 
-# Les tests d'API utilisent le modèle BGE-M3 déjà disponible localement.
-os.environ["HF_HUB_OFFLINE"] = "1"
-
-from app.vectorstore import chroma_store as chroma_store_module
-
-
-# Importing the application builds its runtime dependencies. Keep this API
-# test independent from Docker and from the real "documents" collection.
-_http_client = chroma_store_module.HttpClient
-try:
-    chroma_store_module.HttpClient = lambda **_: EphemeralClient()
-    from app.api.main import app
-finally:
-    chroma_store_module.HttpClient = _http_client
+from app.api.main import app
 
 from app.api.routes.documents import get_document_service
 from app.documents.service import DocumentService

@@ -8,13 +8,11 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from app.api.dependencies import (
+    create_document_processor,
     get_document_repository,
-    get_embedding_service,
-    get_metadata_extractor,
     get_vector_store,
 )
 from app.api.schemas.document import DocumentResponse
-from app.documents.indexer import DocumentIndexer
 from app.documents.processor import DocumentProcessor
 from app.documents.repository import DocumentRepository
 from app.documents.service import (
@@ -30,8 +28,8 @@ router = APIRouter(
 
 
 def get_document_service(
-    embedding_service=Depends(
-        get_embedding_service
+    processor: DocumentProcessor = Depends(
+        create_document_processor
     ),
     vector_store=Depends(
         get_vector_store
@@ -39,20 +37,7 @@ def get_document_service(
     repository: DocumentRepository = Depends(
         get_document_repository
     ),
-    metadata_extractor=Depends(
-        get_metadata_extractor
-    ),
 ) -> DocumentService:
-
-    indexer = DocumentIndexer(
-        embedding_service=embedding_service,
-        vector_store=vector_store,
-    )
-    processor = DocumentProcessor(
-        indexer=indexer,
-        metadata_extractor=metadata_extractor,
-    )
-
     return DocumentService(
         processor=processor,
         repository=repository,
