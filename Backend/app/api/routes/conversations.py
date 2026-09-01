@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_conversation_service
+from app.api.dependencies import (
+    get_conversation_service,
+    get_message_service,
+)
 from app.api.schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
+    MessageResponse,
 )
+from app.conversations.message_service import MessageService
 from app.conversations.service import ConversationService
 
 
@@ -62,3 +67,38 @@ def get_conversation(
         )
 
     return conversation
+
+
+@router.get(
+    "/{conversation_id}/messages",
+    response_model=list[MessageResponse],
+)
+def get_conversation_messages(
+    conversation_id: str,
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    message_service: MessageService = Depends(
+        get_message_service
+    ),
+):
+    conversation = conversation_service.get_conversation(
+        conversation_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation introuvable.",
+        )
+
+    messages = message_service.get_messages(conversation_id)
+    return [
+        MessageResponse(
+            **{
+                **message,
+                "sources": message.get("sources") or [],
+            }
+        )
+        for message in messages
+    ]
