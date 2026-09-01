@@ -414,7 +414,164 @@ class RAGPipeline:
 
             return answer.strip(), used_sources
 
-        return generated_content.strip(), None
+        answer = RAGPipeline._recover_truncated_answer(generated_content)
+        if answer is None:
+            plain_answer = generated_content.strip()
+            contains_internal_protocol = re.search(
+                r'"(?:answer|used_sources)"\s*:',
+                generated_content,
+            )
+            if plain_answer and contains_internal_protocol is None:
+                return plain_answer, None
+
+            return RAGPipeline.NO_RESULTS_MESSAGE, []
+
+        used_sources = RAGPipeline._recover_truncated_used_sources(
+            generated_content
+        )
+        return answer, used_sources
+
+    @staticmethod
+    def _recover_truncated_answer(generated_content: str) -> str | None:
+        """Recover only the JSON ``answer`` value from incomplete output."""
+
+        field_match = re.search(r'"answer"\s*:\s*"', generated_content)
+        if field_match is None:
+            return None
+
+        value_start = field_match.end()
+        recovered: list[str] = []
+        index = value_start
+        escape_values = {
+            '"': '"',
+            "\\": "\\",
+            "/": "/",
+            "b": "\b",
+            "f": "\f",
+            "n": "\n",
+            "r": "\r",
+            "t": "\t",
+        }
+
+        while index < len(generated_content):
+            character = generated_content[index]
+
+            if character == '"':
+                if re.match(
+                    r'"used_sources"\s*:',
+                    generated_content[index:],
+                ):
+                    while recovered and recovered[-1].isspace():
+                        recovered.pop()
+                    if recovered and recovered[-1] == ",":
+                        recovered.pop()
+                break
+
+            if character != "\\":
+                recovered.append(character)
+                index += 1
+                continue
+
+            if index + 1 >= len(generated_content):
+                break
+
+            escaped_character = generated_content[index + 1]
+            if escaped_character in escape_values:
+                recovered.append(escape_values[escaped_character])
+                index += 2
+                continue
+
+            if escaped_character == "u":
+                unicode_escape = generated_content[index:index + 6]
+                if re.fullmatch(r"\\u[0-9a-fA-F]{4}", unicode_escape):
+                    codepoint = int(unicode_escape[2:], 16)
+                    next_escape = generated_content[index + 6:index + 12]
+                    if (
+                        0xD800 <= codepoint <= 0xDBFF
+                        and re.fullmatch(
+                            r"\\u[0-9a-fA-F]{4}",
+                            next_escape,
+                        )
+                    ):
+                        low_surrogate = int(next_escape[2:], 16)
+                        if 0xDC00 <= low_surrogate <= 0xDFFF:
+                            recovered.append(chr(
+                                0x10000
+                                + ((codepoint - 0xD800) << 10)
+                                + (low_surrogate - 0xDC00)
+                            ))
+                            index += 12
+                            continue
+                    if 0xD800 <= codepoint <= 0xDFFF:
+                        recovered.append(unicode_escape)
+                    else:
+                        recovered.append(chr(codepoint))
+                    index += 6
+                    continue
+
+            # Preserve an unknown escape as user text instead of applying a
+            # global replacement to the model protocol.
+            recovered.extend(("\\", escaped_character))
+            index += 2
+
+        answer = "".join(recovered).strip()
+        return answer or None
+
+    @staticmethod
+    def _recover_truncated_used_sources(
+        generated_content: str,
+    ) -> list[str] | None:
+        """Recover valid SOURCE_N IDs from an incomplete citations array."""
+
+        field_match = re.search(
+            r'"used_sources"\s*:\s*\[',
+            generated_content,
+        )
+        if field_match is None:
+            return None
+
+        array_content = generated_content[field_match.end():]
+        array_end = array_content.find("]")
+        if array_end >= 0:
+            array_content = array_content[:array_end]
+
+        source_ids: list[str] = []
+        seen_source_ids: set[str] = set()
+        index = 0
+
+        while index < len(array_content):
+            quote_start = array_content.find('"', index)
+            if quote_start < 0:
+                break
+
+            quote_end = quote_start + 1
+            while quote_end < len(array_content):
+                if array_content[quote_end] == '"':
+                    preceding_backslashes = 0
+                    backslash_index = quote_end - 1
+                    while (
+                        backslash_index > quote_start
+                        and array_content[backslash_index] == "\\"
+                    ):
+                        preceding_backslashes += 1
+                        backslash_index -= 1
+                    if preceding_backslashes % 2 == 0:
+                        break
+                quote_end += 1
+
+            source_id = array_content[quote_start + 1:quote_end]
+            source_id = source_id.strip().upper()
+            index = quote_end + 1
+
+            if re.fullmatch(r"SOURCE_[0-9]+", source_id) is None:
+                continue
+            if source_id in seen_source_ids:
+                continue
+
+            seen_source_ids.add(source_id)
+            source_ids.append(source_id)
+
+        return source_ids or None
 
     @classmethod
     def _is_no_results_answer(cls, answer: str) -> bool:

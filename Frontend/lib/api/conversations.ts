@@ -8,6 +8,18 @@ export async function getConversations(): Promise<Conversation[]> {
   return apiFetch<Conversation[]>("/conversations/");
 }
 
+export async function createConversation(
+  title: string
+): Promise<Conversation> {
+  return apiFetch<Conversation>("/conversations/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function getConversationMessages(
   conversationId: string
 ): Promise<ConversationMessage[]> {

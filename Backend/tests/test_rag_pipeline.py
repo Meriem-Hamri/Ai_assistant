@@ -486,16 +486,95 @@ def test_unknown_source_id_is_ignored():
     assert pipeline.answer("Question").sources == []
 
 
-def test_invalid_citation_payload_does_not_expose_retrieval_results():
-    pipeline, *_ = create_pipeline(
-        results=[create_result()],
-        llm_answer="Normal answer without JSON",
+def test_non_json_generation_is_returned_without_source_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        "Normal answer without JSON"
     )
 
-    response = pipeline.answer("Question")
 
-    assert response.answer == "Normal answer without JSON"
-    assert response.sources == []
+    assert answer == "Normal answer without JSON"
+    assert used_source_ids is None
+
+
+def test_non_json_generation_with_braces_is_returned_as_user_text():
+    generated_content = "La formule est f(x) = {x + 1}."
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == generated_content
+    assert used_source_ids is None
+
+
+def test_truncated_json_recovers_answer_and_decodes_escapes():
+    generated_content = (
+        '{"answer":"Bonjour\\n\\nVoici \\"les\\" informations\\timportantes 😀. '
+        'Chemin: C:\\\\docs", "used_sources":["SOURCE_1"'
+    )
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == (
+        'Bonjour\n\nVoici "les" informations\timportantes 😀. Chemin: C:\\docs'
+    )
+    assert used_source_ids == ["SOURCE_1"]
+
+
+def test_truncated_json_recovers_and_normalizes_source_ids():
+    generated_content = (
+        'Préambule ```json\n{"answer":"Réponse publique.",'
+        '"used_sources":["SOURCE_1","source_2","SOURCE_1",'
+        '"autre","SOURCE_X","SOURCE_3'
+    )
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == "Réponse publique."
+    assert used_source_ids == ["SOURCE_1", "SOURCE_2", "SOURCE_3"]
+
+
+def test_truncated_sources_ignore_unquoted_protocol_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse publique.","used_sources":[SOURCE_1'
+    )
+
+    assert answer == "Réponse publique."
+    assert used_source_ids is None
+
+
+def test_missing_answer_quote_stops_before_used_sources_field():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse publique, "used_sources":["SOURCE_1"'
+    )
+
+    assert answer == "Réponse publique"
+    assert used_source_ids == ["SOURCE_1"]
+
+
+def test_truncated_answer_without_sources_returns_none_for_source_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse encore utilisable malgré la coupure'
+    )
+
+    assert answer == "Réponse encore utilisable malgré la coupure"
+    assert used_source_ids is None
+
+
+def test_unrecoverable_internal_protocol_is_never_returned():
+    generated_content = '{"used_sources":["SOURCE_1"'
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == RAGPipeline.NO_RESULTS_MESSAGE
+    assert used_source_ids == []
+    assert generated_content not in answer
 
 
 def test_duplicate_source_ids_are_returned_once():

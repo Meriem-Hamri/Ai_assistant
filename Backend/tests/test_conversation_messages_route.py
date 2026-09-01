@@ -13,6 +13,7 @@ from app.api.routes.conversations import router
 CONVERSATION_ID = "4c90d6fd-56d6-42d4-bd73-e10bfc621851"
 MISSING_CONVERSATION_ID = "e11ade2f-9ca2-4db5-b2d8-596851479c78"
 CREATED_AT = datetime(2026, 8, 31, 14, 30, tzinfo=timezone.utc)
+UPDATED_AT = datetime(2026, 9, 1, 9, 15, tzinfo=timezone.utc)
 
 
 class FakeConversationService:
@@ -27,6 +28,10 @@ class FakeConversationService:
 
     def create_conversation(self, *args, **kwargs):
         self.mutation_calls.append(("create", args, kwargs))
+        return self.conversation
+
+    def get_conversations(self):
+        return [self.conversation] if self.conversation is not None else []
 
     def update_conversation(self, *args, **kwargs):
         self.mutation_calls.append(("update", args, kwargs))
@@ -70,6 +75,64 @@ def make_message(**overrides):
     }
     message.update(overrides)
     return message
+
+
+def make_conversation():
+    return {
+        "id": CONVERSATION_ID,
+        "title": "Première question",
+        "active_document_id": None,
+        "created_at": CREATED_AT,
+        "updated_at": UPDATED_AT,
+    }
+
+
+def assert_complete_conversation_response(data):
+    assert data == {
+        "id": CONVERSATION_ID,
+        "title": "Première question",
+        "active_document_id": None,
+        "created_at": CREATED_AT.isoformat().replace("+00:00", "Z"),
+        "updated_at": UPDATED_AT.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def test_create_conversation_returns_complete_contract():
+    conversation_service = FakeConversationService(make_conversation())
+
+    response = make_client(conversation_service, FakeMessageService()).post(
+        "/conversations/",
+        json={"title": "Première question"},
+    )
+
+    assert response.status_code == 200
+    assert_complete_conversation_response(response.json())
+    assert conversation_service.mutation_calls == [
+        ("create", (), {"title": "Première question"})
+    ]
+
+
+def test_list_conversations_returns_complete_contract():
+    conversation_service = FakeConversationService(make_conversation())
+
+    response = make_client(conversation_service, FakeMessageService()).get(
+        "/conversations/"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert_complete_conversation_response(response.json()[0])
+
+
+def test_get_conversation_returns_complete_contract():
+    conversation_service = FakeConversationService(make_conversation())
+
+    response = make_client(conversation_service, FakeMessageService()).get(
+        f"/conversations/{CONVERSATION_ID}"
+    )
+
+    assert response.status_code == 200
+    assert_complete_conversation_response(response.json())
 
 
 def test_missing_conversation_returns_404_without_reading_messages():

@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendChatMessage } from "@/lib/api/chat";
-import { getConversationMessages } from "@/lib/api/conversations";
+import {
+  createConversation,
+  getConversationMessages,
+} from "@/lib/api/conversations";
 import type { ChatMessage, ChatRequest } from "@/types/chat";
-import type { ConversationMessage } from "@/types/conversation";
+import type {
+  Conversation,
+  ConversationMessage,
+} from "@/types/conversation";
 
 interface UseChatResult {
   messages: ChatMessage[];
@@ -23,7 +29,10 @@ function toChatMessages(messages: ConversationMessage[]): ChatMessage[] {
   }));
 }
 
-export function useChat(conversationId: string | null): UseChatResult {
+export function useChat(
+  conversationId: string | null,
+  onConversationCreated: (conversation: Conversation) => void
+): UseChatResult {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesConversationId, setMessagesConversationId] = useState<
     string | null
@@ -37,6 +46,7 @@ export function useChat(conversationId: string | null): UseChatResult {
   const activeConversationIdRef = useRef(conversationId);
   const historyRequestVersionRef = useRef(0);
   const requestInFlightRef = useRef(false);
+  const createdConversationInFlightRef = useRef<string | null>(null);
 
   activeConversationIdRef.current = conversationId;
 
@@ -48,6 +58,15 @@ export function useChat(conversationId: string | null): UseChatResult {
       setMessagesConversationId(null);
       setError(null);
       setErrorConversationId(null);
+      setIsLoadingHistoryState(false);
+      return;
+    }
+
+    if (
+      requestInFlightRef.current &&
+      createdConversationInFlightRef.current === conversationId
+    ) {
+      setMessagesConversationId(conversationId);
       setIsLoadingHistoryState(false);
       return;
     }
@@ -119,13 +138,8 @@ export function useChat(conversationId: string | null): UseChatResult {
 
   const sendMessage = useCallback(
     async (question: string, documentId: string | null) => {
-      const targetConversationId = conversationId;
       const trimmedQuestion = question.trim();
-      if (
-        targetConversationId === null ||
-        !trimmedQuestion ||
-        requestInFlightRef.current
-      ) {
+      if (!trimmedQuestion || requestInFlightRef.current) {
         return;
       }
 
@@ -134,67 +148,96 @@ export function useChat(conversationId: string | null): UseChatResult {
       setIsLoadingHistoryState(false);
       setError(null);
       setErrorConversationId(null);
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: trimmedQuestion,
-        },
-      ]);
-      setMessagesConversationId(targetConversationId);
       setIsGenerating(true);
 
-      const request: ChatRequest = {
-        conversation_id: targetConversationId,
-        question: trimmedQuestion,
-        document_id: documentId,
-        category: null,
-        year: null,
-        person: null,
-        tags: null,
-        department: null,
-        document_type: null,
-      };
+      let targetConversationId = conversationId;
 
       try {
-        await sendChatMessage(request);
+        if (targetConversationId === null) {
+          let conversation: Conversation;
+          try {
+            conversation = await createConversation(trimmedQuestion);
+          } catch (creationError) {
+            console.error("Conversation creation failed", creationError);
+            setError("Impossible de créer la conversation.");
+            setErrorConversationId(null);
+            return;
+          }
+
+          targetConversationId = conversation.id;
+          createdConversationInFlightRef.current = targetConversationId;
+          activeConversationIdRef.current = targetConversationId;
+          setMessagesConversationId(targetConversationId);
+          onConversationCreated(conversation);
+        }
+
+        if (targetConversationId === null) {
+          return;
+        }
+        const resolvedConversationId = targetConversationId;
+
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "user",
+            content: trimmedQuestion,
+          },
+        ]);
+        setMessagesConversationId(resolvedConversationId);
+
+        const request: ChatRequest = {
+          conversation_id: resolvedConversationId,
+          question: trimmedQuestion,
+          document_id: documentId,
+          category: null,
+          year: null,
+          person: null,
+          tags: null,
+          department: null,
+          document_type: null,
+        };
 
         try {
-          await resynchronizeConversation(targetConversationId);
-        } catch (synchronizationError) {
-          console.error(
-            "Conversation resynchronization failed",
-            synchronizationError
-          );
-          if (activeConversationIdRef.current === targetConversationId) {
-            setError("Impossible de resynchroniser la conversation.");
-            setErrorConversationId(targetConversationId);
+          await sendChatMessage(request);
+
+          try {
+            await resynchronizeConversation(resolvedConversationId);
+          } catch (synchronizationError) {
+            console.error(
+              "Conversation resynchronization failed",
+              synchronizationError
+            );
+            if (activeConversationIdRef.current === resolvedConversationId) {
+              setError("Impossible de resynchroniser la conversation.");
+              setErrorConversationId(resolvedConversationId);
+            }
+          }
+        } catch (requestError) {
+          console.error("Chat request failed", requestError);
+          if (activeConversationIdRef.current === resolvedConversationId) {
+            setError(
+              "Impossible d’obtenir une réponse pour le moment. Veuillez réessayer."
+            );
+            setErrorConversationId(resolvedConversationId);
+          }
+
+          try {
+            await resynchronizeConversation(resolvedConversationId);
+          } catch (synchronizationError) {
+            console.error(
+              "Conversation resynchronization after chat error failed",
+              synchronizationError
+            );
           }
         }
-      } catch (requestError) {
-        console.error("Chat request failed", requestError);
-        if (activeConversationIdRef.current === targetConversationId) {
-          setError(
-            "Impossible d’obtenir une réponse pour le moment. Veuillez réessayer."
-          );
-          setErrorConversationId(targetConversationId);
-        }
-
-        try {
-          await resynchronizeConversation(targetConversationId);
-        } catch (synchronizationError) {
-          console.error(
-            "Conversation resynchronization after chat error failed",
-            synchronizationError
-          );
-        }
       } finally {
+        createdConversationInFlightRef.current = null;
         requestInFlightRef.current = false;
         setIsGenerating(false);
       }
     },
-    [conversationId, resynchronizeConversation]
+    [conversationId, onConversationCreated, resynchronizeConversation]
   );
 
   const hasCurrentConversationMessages =

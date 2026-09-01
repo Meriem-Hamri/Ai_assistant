@@ -26,6 +26,8 @@ class ConversationService:
         """
 
         normalized_title = title.strip() if title else ""
+        if len(normalized_title) > 80:
+            normalized_title = f"{normalized_title[:77]}..."
         conversation = {
             "id": str(uuid4()),
             "title": normalized_title or "Nouvelle conversation",

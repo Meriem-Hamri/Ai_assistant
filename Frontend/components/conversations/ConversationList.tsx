@@ -7,6 +7,7 @@ interface ConversationListProps {
   error: string | null;
   selectedConversationId: string | null;
   disabled: boolean;
+  onNewConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
 }
 
@@ -16,6 +17,7 @@ export function ConversationList({
   error,
   selectedConversationId,
   disabled,
+  onNewConversation,
   onSelectConversation,
 }: ConversationListProps) {
   return (
@@ -26,6 +28,14 @@ export function ConversationList({
       <h2 className="sidebar-section-title" id="conversations-heading">
         Conversations
       </h2>
+      <button
+        className="new-conversation-button"
+        type="button"
+        disabled={disabled}
+        onClick={onNewConversation}
+      >
+        Nouveau chat
+      </button>
 
       {loading ? (
         <p className="sidebar-status">Chargement des conversations...</p>

@@ -9,6 +9,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useConversations } from "@/hooks/useConversations";
 import { useDocuments } from "@/hooks/useDocuments";
+import type { Conversation } from "@/types/conversation";
 
 export default function Home() {
   const { documents, loading, error, refreshDocuments } = useDocuments();
@@ -16,6 +17,7 @@ export default function Home() {
     conversations,
     loading: conversationsLoading,
     error: conversationsError,
+    refreshConversations,
   } = useConversations();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -39,6 +41,11 @@ export default function Home() {
     }
   }, [documents, loading, selectedDocumentId]);
 
+  const handleConversationCreated = (conversation: Conversation) => {
+    setSelectedConversationId(conversation.id);
+    void refreshConversations();
+  };
+
   return (
     <AppShell
       sidebar={
@@ -49,6 +56,7 @@ export default function Home() {
             error={conversationsError}
             selectedConversationId={selectedConversationId}
             disabled={isChatGenerating}
+            onNewConversation={() => setSelectedConversationId(null)}
             onSelectConversation={setSelectedConversationId}
           />
           <DocumentUpload onUploaded={refreshDocuments} />
@@ -56,7 +64,7 @@ export default function Home() {
         </Sidebar>
       }
     >
-      <ChatWindow selectedConversationId={selectedConversationId} selectedDocumentId={validSelectedDocumentId} selectedDocumentName={selectedDocument?.filename} onGeneratingChange={setIsChatGenerating} />
+      <ChatWindow selectedConversationId={selectedConversationId} selectedDocumentId={validSelectedDocumentId} selectedDocumentName={selectedDocument?.filename} onConversationCreated={handleConversationCreated} onGeneratingChange={setIsChatGenerating} />
     </AppShell>
   );
 }

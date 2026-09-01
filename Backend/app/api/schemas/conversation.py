@@ -12,6 +12,9 @@ class ConversationCreate(BaseModel):
 class ConversationResponse(BaseModel):
     id: str
     title: str
+    active_document_id: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class MessageResponse(BaseModel):

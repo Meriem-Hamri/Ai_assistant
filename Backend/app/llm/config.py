@@ -15,7 +15,7 @@ class LLMConfig:
 
     # Les réponses RAG sont concises. Cette limite évite qu'un modèle local
     # monopolise le CPU en générant inutilement de longues réponses.
-    max_tokens: int = 512
+    max_tokens: int = 1024
 
     top_p: float = 0.9
 

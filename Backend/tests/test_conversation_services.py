@@ -63,6 +63,35 @@ def test_conversation_service_normalizes_title_and_delegates_lifecycle():
     assert service.delete_conversation("existing") is True
 
 
+def test_conversation_service_keeps_normal_title():
+    service = ConversationService(RecordingRepository())
+
+    created = service.create_conversation("Mon titre")
+
+    assert created["title"] == "Mon titre"
+
+
+def test_conversation_service_keeps_title_with_exactly_80_characters():
+    repository = RecordingRepository()
+    service = ConversationService(repository)
+    title = "a" * 80
+
+    created = service.create_conversation(title)
+
+    assert created["title"] == title
+    assert len(created["title"]) == 80
+
+
+def test_conversation_service_truncates_title_longer_than_80_characters():
+    repository = RecordingRepository()
+    service = ConversationService(repository)
+
+    created = service.create_conversation("a" * 81)
+
+    assert created["title"] == f"{'a' * 77}..."
+    assert len(created["title"]) == 80
+
+
 @pytest.mark.parametrize("role", ["user", "assistant"])
 def test_message_service_accepts_roles_and_strips_content(role):
     repository = RecordingRepository()

@@ -23,6 +23,10 @@ button { font: inherit; }
 .brand-mark, .welcome-mark { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; background: var(--text-primary); color: #fff; font-size: 12px; font-weight: 600; }
 .sidebar-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
 .conversation-library { display: flex; max-height: 35%; min-height: 0; flex-direction: column; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); }
+.new-conversation-button { width: 100%; margin-bottom: 5px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--background); color: var(--text-primary); padding: 9px 10px; text-align: left; cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease; }
+.new-conversation-button:hover:not(:disabled) { background: var(--hover-background); border-color: #d9d9da; }
+.new-conversation-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.new-conversation-button:disabled { color: var(--text-secondary); cursor: not-allowed; }
 .conversation-list { min-height: 0; overflow-y: auto; padding: 4px 0; scrollbar-width: thin; }
 .conversation-item { display: block; width: 100%; overflow: hidden; margin: 1px 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-primary); padding: 8px 10px; font-size: 13px; line-height: 1.35; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: background-color 140ms ease; }
 .conversation-item:hover { background: var(--hover-background); }

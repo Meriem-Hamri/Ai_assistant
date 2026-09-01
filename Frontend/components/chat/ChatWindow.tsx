@@ -2,11 +2,12 @@
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 import { useChat } from "@/hooks/useChat";
+import type { Conversation } from "@/types/conversation";
 
-interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentId: string | null; selectedDocumentName?: string | null; onGeneratingChange: (isGenerating: boolean) => void; }
+interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentId: string | null; selectedDocumentName?: string | null; onConversationCreated: (conversation: Conversation) => void; onGeneratingChange: (isGenerating: boolean) => void; }
 
-export function ChatWindow({ selectedConversationId, selectedDocumentId, selectedDocumentName, onGeneratingChange }: ChatWindowProps) {
-  const { messages, isLoadingHistory, isGenerating, error, sendMessage } = useChat(selectedConversationId);
+export function ChatWindow({ selectedConversationId, selectedDocumentId, selectedDocumentName, onConversationCreated, onGeneratingChange }: ChatWindowProps) {
+  const { messages, isLoadingHistory, isGenerating, error, sendMessage } = useChat(selectedConversationId, onConversationCreated);
   const contextName = selectedDocumentName ?? "Tous les documents";
   const handleSend = async (question: string) => {
     onGeneratingChange(true);
@@ -24,6 +25,6 @@ export function ChatWindow({ selectedConversationId, selectedDocumentId, selecte
       <MessageList messages={messages} isGenerating={isGenerating} selectedDocumentName={contextName} />
     )}
     {error && <p className="chat-error" role="alert">{error}</p>}
-    <ChatInput disabled={selectedConversationId === null || isLoadingHistory} isGenerating={isGenerating} onSend={handleSend} />
+    <ChatInput disabled={isLoadingHistory} isGenerating={isGenerating} onSend={handleSend} />
   </section>;
 }
