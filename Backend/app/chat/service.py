@@ -64,7 +64,7 @@ class ChatService:
 
         response = self._rag_pipeline.answer(
             question=persisted_user_message["content"],
-            document_id=document_id,
+            document_ids=() if document_id is None else (document_id,),
             filters=DocumentFilters(
                 category=category,
                 year=year,

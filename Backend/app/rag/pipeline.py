@@ -7,7 +7,7 @@ from app.embeddings.embedding_service import EmbeddingService
 from app.llm.base import BaseLLM
 from app.prompting.prompt_builder import PromptBuilder
 from app.vectorstore.base import BaseVectorStore
-from app.vectorstore.filters import DocumentFilters
+from app.vectorstore.filters import DocumentFilters, normalize_document_ids
 from app.vectorstore.search_result import SearchResult
 
 from app.rag.config import RAGConfig
@@ -83,7 +83,7 @@ class RAGPipeline:
     def answer(
         self,
         question: str,
-        document_id: str | None = None,
+        document_ids: list[str] | tuple[str, ...] | None = None,
         filters: DocumentFilters | None = None,
     ) -> RAGResponse:
         """
@@ -92,6 +92,10 @@ class RAGPipeline:
         Args:
             question:
                 Question de l'utilisateur.
+
+            document_ids:
+                Documents à interroger. None ou une collection vide
+                recherche dans tous les documents.
 
         Returns:
             Réponse RAG contenant la réponse et ses sources.
@@ -111,6 +115,7 @@ class RAGPipeline:
         """
 
         question = self._validate_question(question)
+        normalized_document_ids = normalize_document_ids(document_ids)
 
         start = time.perf_counter()
 
@@ -123,7 +128,11 @@ class RAGPipeline:
         print(f"[TIME] Embedding : {time.perf_counter() - t0:.2f}s")
 
         t0 = time.perf_counter()
-        results = self._retrieve(query_embedding, document_id, filters)
+        results = self._retrieve(
+            query_embedding,
+            normalized_document_ids,
+            filters,
+        )
 
         print(f"[TIME] Retrieval : {time.perf_counter() - t0:.2f}s")
         if not results:
@@ -134,7 +143,7 @@ class RAGPipeline:
 
         selected_results = self._select_results(
             results,
-            document_id=document_id,
+            document_ids=normalized_document_ids,
         )
 
         # Prompt
@@ -214,7 +223,7 @@ class RAGPipeline:
     def _retrieve(
         self,
         query_embedding: list[float],
-        document_id: str | None = None,
+        document_ids: tuple[str, ...] = (),
         filters: DocumentFilters | None = None,
     ) -> list[SearchResult]:
         """
@@ -226,7 +235,7 @@ class RAGPipeline:
                 embedding=query_embedding,
                 top_k=self._config.retrieval_top_k,
                 max_distance=self._config.max_distance,
-                document_id=document_id,
+                document_ids=document_ids,
                 filters=filters,
             )
 
@@ -269,7 +278,7 @@ class RAGPipeline:
     def _select_results(
         self,
         results: list[SearchResult],
-        document_id: str | None,
+        document_ids: tuple[str, ...],
     ) -> list[SearchResult]:
         """Conserve les passages les mieux classés pour le prompt RAG."""
 
@@ -281,12 +290,12 @@ class RAGPipeline:
 
         candidate_results = informative_results or results
 
-        if document_id is None:
+        if len(document_ids) == 1:
+            selected_results = candidate_results[:self._config.top_k]
+        else:
             selected_results = self._select_diverse_documents(
                 candidate_results,
             )
-        else:
-            selected_results = candidate_results[:self._config.top_k]
 
         candidate_document_ids = {
             result.document_id
@@ -296,7 +305,7 @@ class RAGPipeline:
         if (
             len(selected_results) < self._config.top_k
             and (
-                document_id is not None
+                len(document_ids) == 1
                 or len(candidate_document_ids) == 1
             )
         ):

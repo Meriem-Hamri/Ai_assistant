@@ -31,19 +31,21 @@ class FakeVectorStore:
         self.received_top_k = []
         self.received_max_distances = []
         self.received_filters = []
+        self.received_document_ids = []
 
     def search(
         self,
         embedding,
         top_k=5,
         max_distance=None,
-        document_id=None,
+        document_ids=None,
         filters=None,
     ):
         self.received_embeddings.append(embedding)
         self.received_top_k.append(top_k)
         self.received_max_distances.append(max_distance)
         self.received_filters.append(filters)
+        self.received_document_ids.append(document_ids)
         return self.results
 
 
@@ -224,6 +226,28 @@ def test_vector_store_receives_document_filters():
     assert vector_store.received_filters == [filters]
 
 
+@pytest.mark.parametrize(
+    ("document_ids", "expected"),
+    [
+        (None, ()),
+        ([], ()),
+        (["A"], ("A",)),
+        ([" A ", "B", "A", ""], ("A", "B")),
+    ],
+)
+def test_vector_store_receives_normalized_document_ids(
+    document_ids,
+    expected,
+):
+    pipeline, _, vector_store, _, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    pipeline.answer("Question", document_ids=document_ids)
+
+    assert vector_store.received_document_ids == [expected]
+
+
 def test_retrieval_query_is_enriched_for_technology_question():
     pipeline, embedding_service, _, _, _ = create_pipeline(
         results=[create_result()]
@@ -303,6 +327,53 @@ def test_results_are_diversified_without_document_filter():
         "doc-a",
         "doc-b",
     ]
+
+
+def test_results_are_not_diversified_for_one_selected_document():
+    results = [
+        create_result(
+            text=f"Information détaillée {index}. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id=f"chunk-{index}",
+        )
+        for index in range(4)
+    ]
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=4,
+    )
+
+    pipeline.answer("Question", document_ids=["doc-a"])
+
+    assert prompt_builder.received_results == [results]
+
+
+def test_results_are_diversified_for_multiple_selected_documents():
+    results = [
+        create_result(
+            text=f"Information détaillée A {index}. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id=f"chunk-a-{index}",
+        )
+        for index in range(4)
+    ] + [
+        create_result(
+            text="Information détaillée B. " + "B" * 120,
+            document_id="doc-b",
+            chunk_id="chunk-b",
+        )
+    ]
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=4,
+    )
+
+    pipeline.answer("Question", document_ids=["doc-a", "doc-b"])
+
+    assert [
+        result.document_id
+        for result in prompt_builder.received_results[0]
+    ] == ["doc-a", "doc-a", "doc-a", "doc-b"]
 
 
 def test_results_are_sent_to_prompt_builder():
@@ -656,7 +727,7 @@ def test_retrieval_error_is_translated_to_rag_error():
             embedding,
             top_k,
             max_distance=None,
-            document_id=None,
+            document_ids=None,
             filters=None,
         ):
             raise RuntimeError("Retrieval failure")

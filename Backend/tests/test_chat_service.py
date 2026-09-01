@@ -169,7 +169,7 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
     ]
     filters = rag.received_kwargs["filters"]
     assert rag.received_kwargs["question"] == "Quel est le salaire ?"
-    assert rag.received_kwargs["document_id"] == "document-1"
+    assert rag.received_kwargs["document_ids"] == ("document-1",)
     assert filters.category == "finance"
     assert filters.year == 2016
     assert filters.person == "Ahmed"

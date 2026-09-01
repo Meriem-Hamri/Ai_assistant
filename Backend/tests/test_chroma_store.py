@@ -319,7 +319,7 @@ def test_search_rejects_non_numeric_max_distance(store):
             max_distance="0.5",
         )
 
-def test_search_filters_by_document_id(store):
+def test_search_filters_by_one_document_id(store):
 
     chunk1 = Chunk(
         text="Information du document A",
@@ -351,12 +351,98 @@ def test_search_filters_by_document_id(store):
     results = store.search(
         embedding=embedding,
         top_k=5,
-        document_id="docA",
+        document_ids=["docA"],
     )
 
     assert len(results) == 1
     assert results[0].document_id == "docA"
     assert results[0].text == chunk1.text
+
+
+def test_search_filters_by_multiple_document_ids_with_one_query(
+    store,
+    monkeypatch,
+):
+    chunks = [
+        Chunk(
+            text=f"Information du document {document_id}",
+            document_id=document_id,
+            document_name=f"{document_id}.pdf",
+            page_number=1,
+            chunk_index=0,
+            start_char=0,
+            end_char=30,
+        )
+        for document_id in ("docA", "docB", "docC")
+    ]
+    embedding = [0.1] * 1024
+    store.add_chunks(chunks, [embedding] * len(chunks))
+
+    original_query = store._collection.query
+    query_calls = []
+
+    def recording_query(**kwargs):
+        query_calls.append(kwargs)
+        return original_query(**kwargs)
+
+    monkeypatch.setattr(store._collection, "query", recording_query)
+    results = store.search(
+        embedding=embedding,
+        top_k=5,
+        document_ids=["docA", "docB"],
+    )
+
+    assert len(query_calls) == 1
+    assert query_calls[0]["where"] == {
+        "document_id": {"$in": ["docA", "docB"]},
+    }
+    assert {result.document_id for result in results} == {"docA", "docB"}
+
+
+def test_search_without_document_ids_omits_where(store, monkeypatch):
+    original_query = store._collection.query
+    query_calls = []
+
+    def recording_query(**kwargs):
+        query_calls.append(kwargs)
+        return original_query(**kwargs)
+
+    monkeypatch.setattr(store._collection, "query", recording_query)
+    store.search(embedding=[0.1] * 1024, document_ids=[])
+
+    assert len(query_calls) == 1
+    assert "where" not in query_calls[0]
+
+
+def test_search_combines_document_ids_with_other_filters(store):
+    chunks = [
+        Chunk(
+            text=f"Information {document_id}",
+            document_id=document_id,
+            document_name=f"{document_id}.pdf",
+            page_number=1,
+            chunk_index=0,
+            start_char=0,
+            end_char=20,
+            metadata={"category": category},
+        )
+        for document_id, category in (
+            ("docA", "finance"),
+            ("docB", "formation"),
+            ("docC", "finance"),
+        )
+    ]
+    embedding = [0.1] * 1024
+    store.add_chunks(chunks, [embedding] * len(chunks))
+
+    results = store.search(
+        embedding=embedding,
+        top_k=5,
+        document_ids=["docA", "docB"],
+        filters=DocumentFilters(category="finance"),
+    )
+
+    assert [result.document_id for result in results] == ["docA"]
 
 
 def test_search_filters_by_business_metadata_and_tags(store):

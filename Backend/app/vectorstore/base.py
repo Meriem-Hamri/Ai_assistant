@@ -30,7 +30,7 @@ class BaseVectorStore(ABC):
         embedding: list[float],
         top_k: int = 5,
         max_distance: float | None = None,
-        document_id: str | None = None,
+        document_ids: list[str] | tuple[str, ...] | None = None,
         filters: DocumentFilters | None = None,
     ) -> list[SearchResult]:
         """
@@ -47,6 +47,10 @@ class BaseVectorStore(ABC):
                 Distance maximale autorisée pour qu'un résultat
                 soit considéré comme pertinent.
                 Si None, aucun filtrage par distance n'est appliqué.
+
+            document_ids:
+                Identifiants des documents à rechercher. None ou une
+                collection vide recherche dans tous les documents.
 
         Returns:
             Liste des résultats de recherche.

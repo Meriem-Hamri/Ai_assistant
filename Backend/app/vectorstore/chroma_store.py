@@ -147,7 +147,7 @@ class ChromaStore(BaseVectorStore):
             embedding: list[float],
             top_k: int = 5,
             max_distance: float | None = None,
-            document_id: str | None = None,
+            document_ids: list[str] | tuple[str, ...] | None = None,
             filters: DocumentFilters | None = None,
         ) -> list[SearchResult]:
             """
@@ -163,6 +163,10 @@ class ChromaStore(BaseVectorStore):
                 max_distance:
                     Distance maximale autorisée pour un résultat.
                     Si None, aucun filtrage par distance n'est appliqué.
+
+                document_ids:
+                    Documents à rechercher. None ou une collection vide
+                    recherche dans tous les documents.
 
             Returns:
                 Liste des résultats de recherche triés par distance
@@ -216,7 +220,7 @@ class ChromaStore(BaseVectorStore):
             }
 
             filters = filters or DocumentFilters()
-            where = filters.to_chroma_where(document_id=document_id)
+            where = filters.to_chroma_where(document_ids=document_ids)
             if where is not None:
                 query_kwargs["where"] = where
 
