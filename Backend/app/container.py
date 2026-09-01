@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 
 from app.conversations.repository import ConversationRepository
+from app.documents.celery_dispatcher import CeleryDocumentProcessingDispatcher
 from app.documents.indexer import DocumentIndexer
 from app.documents.processor import DocumentProcessor
 from app.documents.repository import DocumentRepository
@@ -34,6 +35,11 @@ def get_vector_store() -> ChromaStore:
 @lru_cache(maxsize=1)
 def get_document_repository() -> DocumentRepository:
     return DocumentRepository()
+
+
+@lru_cache(maxsize=1)
+def get_document_processing_dispatcher() -> CeleryDocumentProcessingDispatcher:
+    return CeleryDocumentProcessingDispatcher()
 
 
 @lru_cache(maxsize=1)

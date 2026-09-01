@@ -3,11 +3,15 @@ from pathlib import Path
 
 import pytest
 from fastapi import UploadFile
+from fastapi.testclient import TestClient
 
+from app.api.main import app
+from app.api.routes.documents import get_document_service
 from app.api.schemas.document import DocumentResponse
-from app.documents.processor import DocumentProcessingResult
 from app.documents.service import (
+    DISPATCH_ERROR_MESSAGE,
     DocumentDeletionConflictError,
+    DocumentProcessingDispatchError,
     DocumentService,
 )
 
@@ -18,10 +22,16 @@ def anyio_backend():
 
 
 class FakeRepository:
-    def __init__(self, *, save_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        save_error: Exception | None = None,
+        update_error: Exception | None = None,
+    ) -> None:
         self.document: dict | None = None
         self.events: list[tuple[str, str]] = []
         self.save_error = save_error
+        self.update_error = update_error
 
     def save(self, metadata: dict) -> None:
         self.events.append(("save", metadata["status"]))
@@ -30,9 +40,11 @@ class FakeRepository:
         self.document = dict(metadata)
 
     def update(self, document_id: str, updates: dict) -> bool:
+        self.events.append(("update", updates["status"]))
+        if self.update_error is not None:
+            raise self.update_error
         if self.document is None or self.document["id"] != document_id:
             return False
-        self.events.append(("update", updates["status"]))
         self.document.update(updates)
         return True
 
@@ -49,6 +61,17 @@ class FakeRepository:
         return True
 
 
+class FakeDispatcher:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.document_ids: list[str] = []
+
+    def enqueue(self, document_id: str) -> None:
+        self.document_ids.append(document_id)
+        if self.error is not None:
+            raise self.error
+
+
 class FakeVectorStore:
     def __init__(self) -> None:
         self.deleted_ids: list[str] = []
@@ -57,56 +80,26 @@ class FakeVectorStore:
         self.deleted_ids.append(document_id)
 
 
-class FakeDocumentProcessor:
-    def __init__(
-        self,
-        repository: FakeRepository,
-        *,
-        error: Exception | None = None,
-    ) -> None:
-        self.repository = repository
-        self.error = error
-        self.calls: list[dict] = []
-
-    def process(self, **kwargs) -> DocumentProcessingResult:
-        assert self.repository.document is not None
-        assert self.repository.document["status"] == "processing"
-        self.calls.append(kwargs)
-        if self.error is not None:
-            raise self.error
-        return DocumentProcessingResult(
-            page_count=1,
-            chunk_count=2,
-            title="Titre automatique",
-            category="Juridique",
-            year=2025,
-            person="Amine",
-            department="Direction",
-            document_type="Contrat",
-            tags=["contrat"],
-        )
-
-
 def make_service(
     repository: FakeRepository,
     *,
-    processor_error: Exception | None = None,
-) -> tuple[DocumentService, FakeVectorStore, FakeDocumentProcessor]:
+    dispatcher_error: Exception | None = None,
+) -> tuple[DocumentService, FakeVectorStore, FakeDispatcher]:
     vector_store = FakeVectorStore()
-    processor = FakeDocumentProcessor(repository, error=processor_error)
+    dispatcher = FakeDispatcher(error=dispatcher_error)
     return (
         DocumentService(
-            processor=processor,
             repository=repository,
             vector_store=vector_store,
+            dispatcher=dispatcher,
         ),
         vector_store,
-        processor,
+        dispatcher,
     )
 
 
-def make_upload() -> UploadFile:
-    return UploadFile(filename="rapport.pdf", file=BytesIO(b"contenu"))
+def make_upload(content: bytes = b"contenu") -> UploadFile:
+    return UploadFile(filename="rapport.pdf", file=BytesIO(content))
 
 
 @pytest.mark.parametrize("status", ["queued", "processing", "ready", "error"])
@@ -120,11 +113,7 @@ def test_document_response_accepts_every_lifecycle_status(status: str):
             "size": 7,
             "created_at": "2026-08-31T12:00:00Z",
             "status": status,
-            "error_message": (
-                "Le traitement du document a échoué."
-                if status == "error"
-                else None
-            ),
+            "error_message": "erreur" if status == "error" else None,
             "chunk_count": None,
         }
     )
@@ -134,85 +123,146 @@ def test_document_response_accepts_every_lifecycle_status(status: str):
 
 
 @pytest.mark.anyio
-async def test_upload_transitions_from_queued_to_processing_to_ready(
+async def test_upload_saves_queued_document_and_enqueues_only_its_id(
     monkeypatch,
     tmp_path: Path,
 ):
     repository = FakeRepository()
-    service, _, processor = make_service(repository)
+    service, _, dispatcher = make_service(repository)
     monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
 
     result = await service.upload_document(make_upload())
+    response = DocumentResponse.model_validate(result)
 
-    assert repository.events[:3] == [
-        ("save", "queued"),
-        ("update", "processing"),
-        ("update", "ready"),
-    ]
-    assert len(processor.calls) == 1
-    assert processor.calls[0]["document_id"] == result["id"]
-    assert processor.calls[0]["filename"] == "rapport.pdf"
-    assert processor.calls[0]["manual_tags_provided"] is False
-    assert result["status"] == "ready"
-    assert {
-        key: result[key]
-        for key in (
-            "page_count",
-            "chunk_count",
-            "title",
-            "category",
-            "year",
-            "person",
-            "department",
-            "document_type",
-            "tags",
-        )
-    } == {
-        "page_count": 1,
-        "chunk_count": 2,
-        "title": "Titre automatique",
-        "category": "Juridique",
-        "year": 2025,
-        "person": "Amine",
-        "department": "Direction",
-        "document_type": "Contrat",
-        "tags": ["contrat"],
-    }
-    assert repository.document == result
+    assert repository.events == [("save", "queued")]
+    assert repository.document is not None
+    assert repository.document["id"] == result["id"]
+    assert repository.document["status"] == result["status"]
+    assert dispatcher.document_ids == [result["id"]]
+    assert result["status"] == "queued"
+    assert result["page_count"] is None
+    assert result["chunk_count"] is None
+    assert response.status == "queued"
+    assert response.tags == []
+    assert Path(result["path"]).read_bytes() == b"contenu"
 
 
 @pytest.mark.anyio
-async def test_processing_error_sets_error_and_keeps_file(monkeypatch, tmp_path: Path):
+@pytest.mark.parametrize(
+    ("tags", "expected"),
+    [(None, None), ([], []), (["audit"], ["audit"])],
+)
+async def test_upload_preserves_manual_tags_contract(
+    monkeypatch,
+    tmp_path: Path,
+    tags,
+    expected,
+):
     repository = FakeRepository()
-    service, _, processor = make_service(
-        repository,
-        processor_error=RuntimeError("détail technique"),
-    )
+    service, _, dispatcher = make_service(repository)
     monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
 
-    with pytest.raises(RuntimeError, match="détail technique"):
-        await service.upload_document(make_upload())
+    result = await service.upload_document(make_upload(), tags=tags)
 
-    assert len(processor.calls) == 1
     assert repository.document is not None
-    assert repository.document["status"] == "error"
-    assert repository.document["error_message"] == (
-        "Le traitement du document a échoué."
-    )
-    assert Path(repository.document["path"]).is_file()
+    assert repository.document["tags"] == expected
+    assert result["tags"] == (expected or [])
+    assert dispatcher.document_ids == [result["id"]]
 
 
 @pytest.mark.anyio
-async def test_initial_save_error_removes_file(monkeypatch, tmp_path: Path):
+async def test_initial_save_error_removes_file_and_does_not_enqueue(
+    monkeypatch,
+    tmp_path: Path,
+):
     repository = FakeRepository(save_error=RuntimeError("postgres indisponible"))
-    service, _, processor = make_service(repository)
+    service, _, dispatcher = make_service(repository)
     monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
 
     with pytest.raises(RuntimeError, match="postgres indisponible"):
         await service.upload_document(make_upload())
 
     assert list(tmp_path.iterdir()) == []
-    assert processor.calls == []
+    assert dispatcher.document_ids == []
+
+
+@pytest.mark.anyio
+async def test_empty_file_is_rejected_before_save_or_enqueue(
+    monkeypatch,
+    tmp_path: Path,
+):
+    repository = FakeRepository()
+    service, _, dispatcher = make_service(repository)
+    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
+
+    with pytest.raises(ValueError, match="vide"):
+        await service.upload_document(make_upload(b""))
+
+    assert repository.events == []
+    assert dispatcher.document_ids == []
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.anyio
+async def test_enqueue_error_marks_document_error_and_keeps_file(
+    monkeypatch,
+    tmp_path: Path,
+):
+    enqueue_error = RuntimeError("redis://secret-host:6379 indisponible")
+    repository = FakeRepository()
+    service, _, dispatcher = make_service(
+        repository,
+        dispatcher_error=enqueue_error,
+    )
+    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
+
+    with pytest.raises(DocumentProcessingDispatchError) as raised:
+        await service.upload_document(make_upload())
+
+    assert raised.value.__cause__ is enqueue_error
+    assert len(dispatcher.document_ids) == 1
+    assert repository.events == [("save", "queued"), ("update", "error")]
+    assert repository.document is not None
+    assert repository.document["status"] == "error"
+    assert repository.document["error_message"] == DISPATCH_ERROR_MESSAGE
+    assert Path(repository.document["path"]).is_file()
+
+
+@pytest.mark.anyio
+async def test_update_error_does_not_replace_enqueue_error_cause(
+    monkeypatch,
+    tmp_path: Path,
+):
+    enqueue_error = RuntimeError("redis indisponible")
+    repository = FakeRepository(update_error=RuntimeError("postgres indisponible"))
+    service, _, _ = make_service(repository, dispatcher_error=enqueue_error)
+    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
+
+    with pytest.raises(DocumentProcessingDispatchError) as raised:
+        await service.upload_document(make_upload())
+
+    assert raised.value.__cause__ is enqueue_error
+    assert repository.document is not None
+    assert repository.document["status"] == "queued"
+    assert Path(repository.document["path"]).is_file()
+
+
+def test_upload_route_maps_dispatch_error_to_503():
+    class FailingService:
+        async def upload_document(self, *args, **kwargs):
+            raise DocumentProcessingDispatchError(DISPATCH_ERROR_MESSAGE)
+
+    app.dependency_overrides[get_document_service] = lambda: FailingService()
+    try:
+        response = TestClient(app).post(
+            "/documents/",
+            files={"file": ("rapport.pdf", b"contenu", "application/pdf")},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": DISPATCH_ERROR_MESSAGE}
 
 
 @pytest.mark.parametrize("status", ["queued", "processing"])

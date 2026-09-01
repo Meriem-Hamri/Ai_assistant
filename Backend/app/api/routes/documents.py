@@ -8,15 +8,17 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from app.api.dependencies import (
-    create_document_processor,
+    get_document_processing_dispatcher,
     get_document_repository,
     get_vector_store,
 )
 from app.api.schemas.document import DocumentResponse
-from app.documents.processor import DocumentProcessor
+from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.repository import DocumentRepository
 from app.documents.service import (
+    DISPATCH_ERROR_MESSAGE,
     DocumentDeletionConflictError,
+    DocumentProcessingDispatchError,
     DocumentService,
 )
 
@@ -28,8 +30,8 @@ router = APIRouter(
 
 
 def get_document_service(
-    processor: DocumentProcessor = Depends(
-        create_document_processor
+    dispatcher: DocumentProcessingDispatcher = Depends(
+        get_document_processing_dispatcher
     ),
     vector_store=Depends(
         get_vector_store
@@ -39,9 +41,9 @@ def get_document_service(
     ),
 ) -> DocumentService:
     return DocumentService(
-        processor=processor,
         repository=repository,
         vector_store=vector_store,
+        dispatcher=dispatcher,
     )
 
 
@@ -62,16 +64,22 @@ async def upload_document(
         get_document_service
     ),
 ):
-    return await service.upload_document(
-        file,
-        title=title,
-        category=category,
-        year=year,
-        person=person,
-        department=department,
-        document_type=document_type,
-        tags=tags,
-    )
+    try:
+        return await service.upload_document(
+            file,
+            title=title,
+            category=category,
+            year=year,
+            person=person,
+            department=department,
+            document_type=document_type,
+            tags=tags,
+        )
+    except DocumentProcessingDispatchError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=DISPATCH_ERROR_MESSAGE,
+        ) from error
 
 
 @router.get(

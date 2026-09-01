@@ -10,6 +10,7 @@ CACHED_GETTERS = (
     container.get_embedding_service,
     container.get_vector_store,
     container.get_document_repository,
+    container.get_document_processing_dispatcher,
     container.get_conversation_repository,
     container.get_prompt_builder,
     container.get_llm,
@@ -33,6 +34,10 @@ def clear_container_caches():
         ("get_embedding_service", "EmbeddingService"),
         ("get_vector_store", "ChromaStore"),
         ("get_document_repository", "DocumentRepository"),
+        (
+            "get_document_processing_dispatcher",
+            "CeleryDocumentProcessingDispatcher",
+        ),
         ("get_conversation_repository", "ConversationRepository"),
         ("get_prompt_builder", "PromptBuilder"),
         ("get_llm", "QwenClient"),

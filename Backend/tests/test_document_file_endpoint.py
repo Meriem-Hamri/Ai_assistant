@@ -18,9 +18,9 @@ class FakeRepository:
 
 def create_service(documents: dict[str, dict]) -> DocumentService:
     return DocumentService(
-        processor=None,
         repository=FakeRepository(documents),
         vector_store=None,
+        dispatcher=None,
     )
 
 

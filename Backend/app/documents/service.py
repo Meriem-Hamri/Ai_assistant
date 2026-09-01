@@ -4,11 +4,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
+from starlette.concurrency import run_in_threadpool
 
-from app.documents.processor import DocumentProcessor
+from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.paths import resolve_document_path
 from app.documents.repository import DocumentRepository
-from starlette.concurrency import run_in_threadpool
+
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DOCUMENTS_DIR = BACKEND_DIR / "documents"
@@ -16,25 +17,29 @@ DOCUMENTS_DIR.mkdir(exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
+DISPATCH_ERROR_MESSAGE = "Le traitement du document n'a pas pu être planifié."
+
 
 class DocumentDeletionConflictError(Exception):
     """Le statut courant du document interdit sa suppression."""
 
 
+class DocumentProcessingDispatchError(Exception):
+    """Le traitement du document n'a pas pu être planifié."""
+
+
 class DocumentService:
-    """
-    Service responsable du cycle de vie d'un document.
-    """
+    """Service responsable du cycle de vie d'un document."""
 
     def __init__(
         self,
-        processor: DocumentProcessor,
         repository: DocumentRepository,
         vector_store,
+        dispatcher: DocumentProcessingDispatcher,
     ) -> None:
-        self._processor = processor
         self._repository = repository
         self._vector_store = vector_store
+        self._dispatcher = dispatcher
 
     async def upload_document(
         self,
@@ -48,11 +53,8 @@ class DocumentService:
         document_type: str | None = None,
         tags: list[str] | None = None,
     ) -> dict:
-
         if not file.filename:
-            raise ValueError(
-                "Le fichier doit avoir un nom."
-            )
+            raise ValueError("Le fichier doit avoir un nom.")
 
         manual_metadata = self._build_business_metadata(
             title=title,
@@ -65,32 +67,16 @@ class DocumentService:
         )
 
         document_id = str(uuid4())
-
         original_name = file.filename
-
-        extension = Path(
-            original_name
-        ).suffix.lower()
-
-        stored_filename = (
-            f"{document_id}{extension}"
-        )
-
-        file_path = (
-            DOCUMENTS_DIR / stored_filename
-        )
+        extension = Path(original_name).suffix.lower()
+        stored_filename = f"{document_id}{extension}"
+        file_path = DOCUMENTS_DIR / stored_filename
 
         content = await file.read()
-
         if not content:
-            raise ValueError(
-                "Le fichier est vide."
-            )
+            raise ValueError("Le fichier est vide.")
 
-        await run_in_threadpool(
-            file_path.write_bytes,
-            content,
-        )
+        await run_in_threadpool(file_path.write_bytes, content)
 
         initial_metadata = {
             "id": document_id,
@@ -108,83 +94,47 @@ class DocumentService:
         }
 
         try:
-            await run_in_threadpool(
-                self._repository.save,
-                initial_metadata,
-            )
+            await run_in_threadpool(self._repository.save, initial_metadata)
         except Exception:
             if file_path.exists():
                 await run_in_threadpool(file_path.unlink)
             raise
 
         try:
-            processing_updated = await run_in_threadpool(
-                self._repository.update,
-                document_id,
-                {"status": "processing", "error_message": None},
-            )
-            if not processing_updated:
-                raise RuntimeError(
-                    "Le document enregistré est introuvable."
-                )
-
-            processing_result = await run_in_threadpool(
-                self._processor.process,
-                file_path=file_path,
-                document_id=document_id,
-                filename=original_name,
-                manual_metadata=manual_metadata,
-                manual_tags_provided=tags is not None,
-            )
-
-            ready_updates = {
-                "status": "ready",
-                "error_message": None,
-                "page_count": processing_result.page_count,
-                "chunk_count": processing_result.chunk_count,
-                "title": processing_result.title,
-                "category": processing_result.category,
-                "year": processing_result.year,
-                "person": processing_result.person,
-                "department": processing_result.department,
-                "document_type": processing_result.document_type,
-                "tags": processing_result.tags,
-            }
-            ready_updated = await run_in_threadpool(
-                self._repository.update,
-                document_id,
-                ready_updates,
-            )
-            if not ready_updated:
-                raise RuntimeError(
-                    "Le document traité est introuvable."
-                )
-
-            return {**initial_metadata, **ready_updates}
-
-        except Exception:
+            await run_in_threadpool(self._dispatcher.enqueue, document_id)
+        except Exception as enqueue_error:
             logger.exception(
-                "Échec du traitement du document %s.",
+                "Échec de la planification du document %s.",
                 document_id,
             )
             try:
-                await run_in_threadpool(
+                error_updated = await run_in_threadpool(
                     self._repository.update,
                     document_id,
                     {
                         "status": "error",
-                        "error_message": (
-                            "Le traitement du document a échoué."
-                        ),
+                        "error_message": DISPATCH_ERROR_MESSAGE,
                     },
                 )
+                if not error_updated:
+                    raise RuntimeError(
+                        "Le document en erreur est introuvable."
+                    )
             except Exception:
                 logger.exception(
-                    "Impossible d'enregistrer l'échec du document %s.",
+                    "Impossible d'enregistrer l'échec de planification "
+                    "du document %s.",
                     document_id,
                 )
 
-            raise
+            raise DocumentProcessingDispatchError(
+                DISPATCH_ERROR_MESSAGE
+            ) from enqueue_error
+
+        return {
+            **initial_metadata,
+            "tags": manual_metadata["tags"],
+        }
 
     @staticmethod
     def _build_business_metadata(
@@ -197,11 +147,11 @@ class DocumentService:
         document_type: str | None,
         tags: list[str] | None,
     ) -> dict:
-        """Normalise les mÃ©tadonnÃ©es mÃ©tier renseignÃ©es Ã  l'import."""
+        """Normalise les métadonnées métier renseignées à l'import."""
 
         if year is not None and not 1000 <= year <= 9999:
             raise ValueError(
-                "L'annÃ©e doit Ãªtre comprise entre 1000 et 9999."
+                "L'année doit être comprise entre 1000 et 9999."
             )
 
         def clean(value: str | None) -> str | None:
@@ -227,29 +177,20 @@ class DocumentService:
         }
 
     def get_documents(self) -> list[dict]:
-        """
-        Retourne la liste des documents enregistrÃ©s.
-        """
+        """Retourne la liste des documents enregistrés."""
 
         return self._repository.get_all()
 
-    def get_document(
-        self,
-        document_id: str,
-    ) -> dict | None:
-        """
-        Retourne les mÃ©tadonnÃ©es d'un document.
-        """
+    def get_document(self, document_id: str) -> dict | None:
+        """Retourne les métadonnées d'un document."""
 
-        return self._repository.get_by_id(
-            document_id
-        )
+        return self._repository.get_by_id(document_id)
 
     def get_document_file(
         self,
         document_id: str,
     ) -> tuple[Path, dict] | None:
-        """Retourne le fichier physique et ses mÃ©tadonnÃ©es pour le viewer."""
+        """Retourne le fichier physique et ses métadonnées pour le viewer."""
 
         metadata = self.get_document(document_id)
         if metadata is None:
@@ -263,18 +204,10 @@ class DocumentService:
 
         return file_path, metadata
 
-    def delete_document(
-        self,
-        document_id: str,
-    ) -> bool:
-        """
-        Supprime un document de tous les stockages.
-        """
+    def delete_document(self, document_id: str) -> bool:
+        """Supprime un document de tous les stockages."""
 
-        metadata = self._repository.get_by_id(
-            document_id
-        )
-
+        metadata = self._repository.get_by_id(document_id)
         if metadata is None:
             return False
 
@@ -284,17 +217,11 @@ class DocumentService:
                 "ne peut pas être supprimé."
             )
 
-        self._vector_store.delete_document(
-            document_id
-        )
+        self._vector_store.delete_document(document_id)
 
         file_path = resolve_document_path(metadata["path"])
-
         if file_path.exists():
             file_path.unlink()
 
-        self._repository.delete(
-            document_id
-        )
-
+        self._repository.delete(document_id)
         return True
