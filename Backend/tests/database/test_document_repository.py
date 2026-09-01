@@ -111,6 +111,57 @@ def test_get_by_id_returns_contract_and_handles_unknown_ids():
         cleanup_documents(metadata["id"])
 
 
+def test_get_by_ids_empty_returns_without_opening_a_session(monkeypatch):
+    repository = DocumentRepository()
+
+    def fail_if_called():
+        raise AssertionError(
+            "Une sélection vide ne doit pas interroger PostgreSQL"
+        )
+
+    monkeypatch.setattr("app.documents.repository.SessionLocal", fail_if_called)
+
+    assert repository.get_by_ids([]) == []
+
+
+def test_get_by_ids_returns_multiple_documents_in_requested_order():
+    repository = DocumentRepository()
+    first = build_metadata()
+    second = build_metadata(status="processing")
+
+    try:
+        repository.save(first)
+        repository.save(second)
+
+        results = repository.get_by_ids([second["id"], first["id"]])
+
+        assert [result["id"] for result in results] == [
+            second["id"],
+            first["id"],
+        ]
+        assert [result["status"] for result in results] == [
+            "processing",
+            "ready",
+        ]
+    finally:
+        cleanup_documents(first["id"], second["id"])
+
+
+def test_get_by_ids_ignores_invalid_uuid_for_business_level_validation():
+    repository = DocumentRepository()
+    metadata = build_metadata()
+
+    try:
+        repository.save(metadata)
+
+        assert repository.get_by_ids(["uuid-invalide", metadata["id"]]) == [
+            repository.get_by_id(metadata["id"])
+        ]
+        assert repository.get_by_ids(["uuid-invalide"]) == []
+    finally:
+        cleanup_documents(metadata["id"])
+
+
 @pytest.mark.parametrize(
     ("persisted_tags", "expected_processing_tags"),
     [

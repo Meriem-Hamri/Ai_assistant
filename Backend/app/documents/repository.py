@@ -81,6 +81,30 @@ class DocumentRepository:
                 return None
             return self._to_dict(document)
 
+    def get_by_ids(
+        self,
+        document_ids: list[str] | tuple[str, ...],
+    ) -> list[dict]:
+        """Retourne en une lecture les documents dont les UUID sont valides."""
+        parsed_ids = [
+            parsed_id
+            for document_id in document_ids
+            if (parsed_id := self._parse_id(document_id)) is not None
+        ]
+        if not parsed_ids:
+            return []
+
+        with SessionLocal() as session:
+            documents = session.scalars(
+                select(DocumentModel).where(DocumentModel.id.in_(parsed_ids))
+            ).all()
+            documents_by_id = {document.id: document for document in documents}
+            return [
+                self._to_dict(documents_by_id[document_id])
+                for document_id in parsed_ids
+                if document_id in documents_by_id
+            ]
+
     def get_for_processing(
         self,
         document_id: str,

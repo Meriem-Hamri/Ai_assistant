@@ -1,9 +1,12 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes.chat import get_chat_service, router
-from app.api.schemas.chat import ChatResponse, ChatSourceResponse
+from app.api.schemas.chat import ChatRequest, ChatResponse, ChatSourceResponse
 from app.chat.service import (
+    ChatDocumentNotFoundError,
+    ChatDocumentNotReadyError,
     ConversationNotFoundError,
     InvalidChatQuestionError,
 )
@@ -30,6 +33,25 @@ def make_client(service):
     app.include_router(router)
     app.dependency_overrides[get_chat_service] = lambda: service
     return TestClient(app)
+
+
+def test_chat_service_factory_injects_document_repository():
+    rag = object()
+    conversations = object()
+    messages = object()
+    documents = object()
+
+    service = get_chat_service(rag, conversations, messages, documents)
+
+    assert service._rag_pipeline is rag
+    assert service._conversation_service is conversations
+    assert service._message_service is messages
+    assert service._document_repository is documents
+
+
+def test_legacy_document_id_is_not_part_of_chat_request_contract():
+    assert "document_id" not in ChatRequest.model_fields
+    assert "document_ids" in ChatRequest.model_fields
 
 
 def test_conversation_id_is_required():
@@ -81,7 +103,7 @@ def test_success_returns_conversation_answer_and_sources():
         json={
             "conversation_id": CONVERSATION_ID,
             "question": "Question",
-            "document_id": "document-1",
+            "document_ids": ["document-1", "document-2"],
         },
     )
 
@@ -92,7 +114,85 @@ def test_success_returns_conversation_answer_and_sources():
         "sources": [source.model_dump()],
     }
     assert service.received_kwargs["conversation_id"] == CONVERSATION_ID
-    assert service.received_kwargs["document_id"] == "document-1"
+    assert service.received_kwargs["document_ids"] == [
+        "document-1",
+        "document-2",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({}, []),
+        ({"document_ids": []}, []),
+        ({"document_ids": ["A"]}, ["A"]),
+        ({"document_ids": ["A", "B"]}, ["A", "B"]),
+    ],
+)
+def test_document_ids_public_contract(payload, expected):
+    service = FakeChatService(
+        result=ChatResponse(
+            conversation_id=CONVERSATION_ID,
+            answer="Reponse",
+            sources=[],
+        )
+    )
+
+    response = make_client(service).post(
+        "/chat/",
+        json={
+            "conversation_id": CONVERSATION_ID,
+            "question": "Question",
+            **payload,
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.received_kwargs["document_ids"] == expected
+
+
+def test_non_string_document_id_is_rejected_by_request_validation():
+    service = FakeChatService()
+
+    response = make_client(service).post(
+        "/chat/",
+        json={
+            "conversation_id": CONVERSATION_ID,
+            "question": "Question",
+            "document_ids": ["A", 2],
+        },
+    )
+
+    assert response.status_code == 422
+    assert service.received_kwargs is None
+
+
+def test_missing_document_returns_404():
+    service = FakeChatService(error=ChatDocumentNotFoundError())
+
+    response = make_client(service).post(
+        "/chat/",
+        json={"conversation_id": CONVERSATION_ID, "question": "Question"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Document introuvable."}
+
+
+def test_non_ready_document_returns_409():
+    service = FakeChatService(error=ChatDocumentNotReadyError())
+
+    response = make_client(service).post(
+        "/chat/",
+        json={"conversation_id": CONVERSATION_ID, "question": "Question"},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": (
+            "Un ou plusieurs documents sélectionnés ne sont pas prêts."
+        )
+    }
 
 
 def test_blank_question_returns_400():

@@ -23,4 +23,5 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     sources: list[ChatSourceResponse]
+    document_ids: list[str]
     created_at: datetime

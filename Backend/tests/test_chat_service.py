@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 import pytest
 
 from app.chat.service import (
+    ChatDocumentNotFoundError,
+    ChatDocumentNotReadyError,
     ChatService,
     ConversationNotFoundError,
     InvalidChatQuestionError,
@@ -77,12 +79,26 @@ class FakeRAGPipeline:
         return self.response
 
 
+class FakeDocumentRepository:
+    def __init__(self, documents=None, operations=None):
+        self.documents = documents or {}
+        self.operations = operations if operations is not None else []
+        self.received_ids = []
+
+    def get_by_ids(self, document_ids):
+        ids = list(document_ids)
+        self.operations.append(("get_documents", tuple(ids)))
+        self.received_ids.append(ids)
+        return [self.documents[value] for value in ids if value in self.documents]
+
+
 def build_service(
     *,
     conversation=None,
     rag_response=None,
     rag_error=None,
     assistant_error=None,
+    documents=None,
 ):
     operations = []
     conversation_service = FakeConversationService(
@@ -98,19 +114,38 @@ def build_service(
         error=rag_error,
         operations=operations,
     )
+    document_repository = FakeDocumentRepository(
+        documents=documents,
+        operations=operations,
+    )
     service = ChatService(
         rag_pipeline=rag_pipeline,
         conversation_service=conversation_service,
         message_service=message_service,
+        document_repository=document_repository,
     )
-    return service, conversation_service, message_service, rag_pipeline, operations
+    return (
+        service,
+        conversation_service,
+        message_service,
+        rag_pipeline,
+        document_repository,
+        operations,
+    )
 
 
 @pytest.mark.parametrize("conversation_id", [CONVERSATION_ID, "invalid-uuid"])
 def test_missing_or_invalid_conversation_stops_before_message_and_rag(
     conversation_id,
 ):
-    service, conversations, messages, rag, operations = build_service()
+    (
+        service,
+        conversations,
+        messages,
+        rag,
+        documents,
+        operations,
+    ) = build_service()
 
     with pytest.raises(ConversationNotFoundError):
         service.send_message(conversation_id, "Question")
@@ -118,18 +153,22 @@ def test_missing_or_invalid_conversation_stops_before_message_and_rag(
     assert operations == [("get_conversation", conversation_id)]
     assert messages.created == []
     assert rag.received_kwargs is None
+    assert documents.received_ids == []
     assert conversations.updates == []
 
 
 def test_success_persists_messages_sources_and_updates_after_assistant():
-    service, conversations, messages, rag, operations = build_service(
-        conversation={"id": CONVERSATION_ID}
+    service, conversations, messages, rag, _, operations = build_service(
+        conversation={"id": CONVERSATION_ID},
+        documents={
+            "document-1": {"id": "document-1", "status": "ready"},
+        },
     )
 
     response = service.send_message(
         conversation_id=CONVERSATION_ID,
         question="   Quel est le salaire ?   ",
-        document_id="document-1",
+        document_ids=["document-1"],
         category="finance",
         year=2016,
         person="Ahmed",
@@ -148,6 +187,7 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
     }
     assert operations == [
         ("get_conversation", CONVERSATION_ID),
+        ("get_documents", ("document-1",)),
         ("create_message", "user"),
         ("rag", "Quel est le salaire ?"),
         ("create_message", "assistant"),
@@ -159,12 +199,14 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
             "role": "user",
             "content": "Quel est le salaire ?",
             "sources": None,
+            "document_ids": ["document-1"],
         },
         {
             "conversation_id": CONVERSATION_ID,
             "role": "assistant",
             "content": "Le salaire est de 9 500 DH.",
             "sources": [expected_source],
+            "document_ids": [],
         },
     ]
     filters = rag.received_kwargs["filters"]
@@ -191,21 +233,108 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
     )
 
 
+def test_empty_selection_skips_document_lookup_and_means_all_documents():
+    service, _, messages, rag, documents, operations = build_service(
+        conversation={"id": CONVERSATION_ID}
+    )
+
+    service.send_message(CONVERSATION_ID, "Question", document_ids=[])
+
+    assert documents.received_ids == []
+    assert messages.created[0]["document_ids"] == []
+    assert rag.received_kwargs["document_ids"] == ()
+    assert operations[:3] == [
+        ("get_conversation", CONVERSATION_ID),
+        ("create_message", "user"),
+        ("rag", "Question"),
+    ]
+
+
+def test_multiple_documents_are_normalized_once_for_snapshot_and_rag():
+    service, _, messages, rag, documents, _ = build_service(
+        conversation={"id": CONVERSATION_ID},
+        documents={
+            "A": {"id": "A", "status": "ready"},
+            "B": {"id": "B", "status": "ready"},
+        },
+    )
+
+    service.send_message(
+        CONVERSATION_ID,
+        "Question",
+        document_ids=[" A ", "", "A", " B "],
+    )
+
+    assert documents.received_ids == [["A", "B"]]
+    assert messages.created[0]["document_ids"] == ["A", "B"]
+    assert rag.received_kwargs["document_ids"] == ("A", "B")
+    assert messages.created[1]["document_ids"] == []
+
+
+@pytest.mark.parametrize(
+    "requested_ids",
+    [["missing"], ["A", "missing"]],
+)
+def test_missing_document_stops_before_message_rag_and_update(requested_ids):
+    (
+        service,
+        conversations,
+        messages,
+        rag,
+        documents,
+        operations,
+    ) = build_service(
+        conversation={"id": CONVERSATION_ID},
+        documents={"A": {"id": "A", "status": "ready"}},
+    )
+
+    with pytest.raises(ChatDocumentNotFoundError):
+        service.send_message(
+            CONVERSATION_ID,
+            "Question",
+            document_ids=requested_ids,
+        )
+
+    assert documents.received_ids == [requested_ids]
+    assert messages.created == []
+    assert rag.received_kwargs is None
+    assert conversations.updates == []
+    assert all(operation[0] != "create_message" for operation in operations)
+
+
+@pytest.mark.parametrize("status", ["queued", "processing", "error", "other"])
+def test_non_ready_document_stops_before_message_rag_and_update(status):
+    service, conversations, messages, rag, _, _ = build_service(
+        conversation={"id": CONVERSATION_ID},
+        documents={"A": {"id": "A", "status": status}},
+    )
+
+    with pytest.raises(ChatDocumentNotReadyError):
+        service.send_message(CONVERSATION_ID, "Question", document_ids=["A"])
+
+    assert messages.created == []
+    assert rag.received_kwargs is None
+    assert conversations.updates == []
+
+
 def test_rag_failure_keeps_user_and_does_not_update_conversation():
     error = RAGGenerationError("generation indisponible")
-    service, conversations, messages, _, operations = build_service(
+    service, conversations, messages, _, _, operations = build_service(
         conversation={"id": CONVERSATION_ID},
         rag_error=error,
+        documents={"A": {"id": "A", "status": "ready"}},
     )
 
     with pytest.raises(RAGGenerationError) as raised:
-        service.send_message(CONVERSATION_ID, "Question")
+        service.send_message(CONVERSATION_ID, "Question", document_ids=["A"])
 
     assert raised.value is error
     assert [message["role"] for message in messages.created] == ["user"]
+    assert messages.created[0]["document_ids"] == ["A"]
     assert conversations.updates == []
     assert operations == [
         ("get_conversation", CONVERSATION_ID),
+        ("get_documents", ("A",)),
         ("create_message", "user"),
         ("rag", "Question"),
     ]
@@ -213,7 +342,7 @@ def test_rag_failure_keeps_user_and_does_not_update_conversation():
 
 def test_assistant_save_failure_does_not_update_conversation():
     error = RuntimeError("postgres indisponible")
-    service, conversations, messages, rag, operations = build_service(
+    service, conversations, messages, rag, _, operations = build_service(
         conversation={"id": CONVERSATION_ID},
         assistant_error=error,
     )
@@ -229,7 +358,7 @@ def test_assistant_save_failure_does_not_update_conversation():
 
 
 def test_no_sources_is_a_successful_persisted_turn():
-    service, conversations, messages, _, _ = build_service(
+    service, conversations, messages, _, _, _ = build_service(
         conversation={"id": CONVERSATION_ID},
         rag_response=RAGResponse(
             answer="Information non disponible dans les documents.",
@@ -259,7 +388,8 @@ def test_empty_message_content_becomes_invalid_chat_question():
     )
     messages = RejectingMessageService(operations=operations)
     rag = FakeRAGPipeline(operations=operations)
-    service = ChatService(rag, conversations, messages)
+    documents = FakeDocumentRepository(operations=operations)
+    service = ChatService(rag, conversations, messages, documents)
 
     with pytest.raises(InvalidChatQuestionError):
         service.send_message(CONVERSATION_ID, "   ")
@@ -278,7 +408,7 @@ def test_invalid_message_role_is_not_converted_to_invalid_chat_question():
     )
     messages = FailingMessageService()
     rag = FakeRAGPipeline()
-    service = ChatService(rag, conversations, messages)
+    service = ChatService(rag, conversations, messages, FakeDocumentRepository())
 
     with pytest.raises(InvalidMessageRoleError, match="rôle invalide"):
         service.send_message(CONVERSATION_ID, "Question")

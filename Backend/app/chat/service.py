@@ -4,8 +4,10 @@ from app.api.schemas.chat import ChatResponse, ChatSourceResponse
 from app.conversations.message_service import (
     EmptyMessageContentError,
     MessageService,
+    normalize_document_ids,
 )
 from app.conversations.service import ConversationService
+from app.documents.repository import DocumentRepository
 from app.rag.pipeline import RAGPipeline
 from app.vectorstore.filters import DocumentFilters
 
@@ -16,6 +18,14 @@ class ConversationNotFoundError(Exception):
 
 class InvalidChatQuestionError(Exception):
     """La question ne peut pas être persistée comme message utilisateur."""
+
+
+class ChatDocumentNotFoundError(Exception):
+    """Au moins un document sélectionné n'existe pas."""
+
+
+class ChatDocumentNotReadyError(Exception):
+    """Au moins un document sélectionné n'est pas prêt."""
 
 
 class ChatService:
@@ -29,16 +39,18 @@ class ChatService:
         rag_pipeline: RAGPipeline,
         conversation_service: ConversationService,
         message_service: MessageService,
+        document_repository: DocumentRepository,
     ) -> None:
         self._rag_pipeline = rag_pipeline
         self._conversation_service = conversation_service
         self._message_service = message_service
+        self._document_repository = document_repository
 
     def send_message(
         self,
         conversation_id: str,
         question: str,
-        document_id: str | None = None,
+        document_ids: list[str] | tuple[str, ...] | None = None,
         category: str | None = None,
         year: int | None = None,
         person: str | None = None,
@@ -52,19 +64,39 @@ class ChatService:
         if conversation is None:
             raise ConversationNotFoundError
 
+        normalized_document_ids = normalize_document_ids(document_ids)
+        if normalized_document_ids:
+            documents = self._document_repository.get_by_ids(
+                normalized_document_ids
+            )
+            documents_by_id = {
+                document["id"]: document for document in documents
+            }
+            if any(
+                document_id not in documents_by_id
+                for document_id in normalized_document_ids
+            ):
+                raise ChatDocumentNotFoundError
+            if any(
+                documents_by_id[document_id]["status"] != "ready"
+                for document_id in normalized_document_ids
+            ):
+                raise ChatDocumentNotReadyError
+
         try:
             persisted_user_message = self._message_service.create_message(
                 conversation_id=conversation_id,
                 role="user",
                 content=question,
                 sources=None,
+                document_ids=normalized_document_ids,
             )
         except EmptyMessageContentError as exc:
             raise InvalidChatQuestionError from exc
 
         response = self._rag_pipeline.answer(
             question=persisted_user_message["content"],
-            document_ids=() if document_id is None else (document_id,),
+            document_ids=tuple(normalized_document_ids),
             filters=DocumentFilters(
                 category=category,
                 year=year,
@@ -92,6 +124,7 @@ class ChatService:
             role="assistant",
             content=response.answer,
             sources=source_snapshot,
+            document_ids=[],
         )
         self._conversation_service.update_conversation(
             conversation_id,

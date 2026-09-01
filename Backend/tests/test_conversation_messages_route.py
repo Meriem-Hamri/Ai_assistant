@@ -71,6 +71,7 @@ def make_message(**overrides):
         "role": "user",
         "content": "Question",
         "sources": None,
+        "document_ids": [],
         "created_at": CREATED_AT,
     }
     message.update(overrides)
@@ -186,6 +187,21 @@ def test_user_message_normalizes_null_sources_to_empty_list():
 
     assert response.status_code == 200
     assert response.json()[0]["sources"] == []
+    assert response.json()[0]["document_ids"] == []
+
+
+def test_user_message_exposes_selected_document_snapshot():
+    conversation_service = FakeConversationService({"id": CONVERSATION_ID})
+    message_service = FakeMessageService(
+        [make_message(document_ids=["A", "B"])]
+    )
+
+    response = make_client(conversation_service, message_service).get(
+        f"/conversations/{CONVERSATION_ID}/messages"
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["document_ids"] == ["A", "B"]
 
 
 def test_assistant_message_returns_complete_source_snapshot():
@@ -214,6 +230,7 @@ def test_assistant_message_returns_complete_source_snapshot():
 
     assert response.status_code == 200
     assert response.json()[0]["sources"] == [source]
+    assert response.json()[0]["document_ids"] == []
 
 
 def test_message_order_is_preserved_and_read_does_not_mutate():

@@ -98,6 +98,7 @@ def get_conversation_messages(
             **{
                 **message,
                 "sources": message.get("sources") or [],
+                "document_ids": message.get("document_ids") or [],
             }
         )
         for message in messages
