@@ -1,5 +1,6 @@
 import pytest
 
+from app.prompting.prompt_builder import PromptBuilder
 from app.rag.config import RAGConfig
 from app.rag.exceptions import (
     RAGEmbeddingError,
@@ -515,6 +516,65 @@ def test_comparative_question_targets_missing_document_with_same_embedding():
         "doc-a",
         "doc-b",
     }
+
+
+def test_grounded_comparison_from_two_documents_is_not_replaced_by_fallback():
+    result_a = create_result(
+        text=(
+            "Le tableau de bord utilise des indicateurs pour suivre "
+            "l'activite et faciliter l'analyse des donnees."
+        ),
+        document_name="final.pdf",
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    result_b = create_result(
+        text=(
+            "Le rapport utilise des indicateurs pour suivre l'evolution "
+            "de la consommation et des emissions."
+        ),
+        document_name="Environnement.docx",
+        document_id="doc-b",
+        chunk_id="chunk-b",
+    )
+    embedding_service = FakeEmbeddingService()
+    vector_store = FakeVectorStore(
+        results_by_document_ids={
+            ("doc-a", "doc-b"): [result_a],
+            ("doc-b",): [result_b],
+        }
+    )
+    llm = FakeLLM(
+        answer=(
+            '{"answer":"Les deux documents ont en commun le suivi '
+            'd activites au moyen d indicateurs.",'
+            '"used_sources":["SOURCE_1","SOURCE_2"]}'
+        )
+    )
+    pipeline = RAGPipeline(
+        embedding_service=embedding_service,
+        vector_store=vector_store,
+        prompt_builder=PromptBuilder(),
+        llm=llm,
+        config=RAGConfig(),
+    )
+
+    response = pipeline.answer(
+        "y a t il un lien en commun entre ces documents ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert response.answer != RAGPipeline.NO_RESULTS_MESSAGE
+    assert response.answer == (
+        "Les deux documents ont en commun le suivi d activites au moyen "
+        "d indicateurs."
+    )
+    assert {source.document_id for source in response.sources} == {
+        "doc-a",
+        "doc-b",
+    }
+    assert "final.pdf" in llm.received_prompts[0]
+    assert "Environnement.docx" in llm.received_prompts[0]
 
 
 def test_comparative_retrieval_merge_deduplicates_chunk_ids():
