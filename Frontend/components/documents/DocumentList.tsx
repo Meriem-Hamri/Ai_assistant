@@ -28,7 +28,7 @@ export function DocumentList({
     );
   }
 
-  if (error) {
+  if (error && documents.length === 0) {
     return (
       <p className="sidebar-status sidebar-status-error">
         Impossible de charger les documents : {error}
@@ -47,6 +47,12 @@ export function DocumentList({
       >
         Documents
       </h2>
+
+      {error && (
+        <p className="sidebar-status sidebar-status-error" role="status">
+          Actualisation impossible : {error}
+        </p>
+      )}
 
       <button
         type="button"
@@ -79,7 +85,11 @@ export function DocumentList({
               key={document.id}
               document={document}
               isSelected={selectedDocumentId === document.id}
-              onSelect={() => onSelectDocument(document.id)}
+              onSelect={() => {
+                if (document.status === "ready") {
+                  onSelectDocument(document.id);
+                }
+              }}
               onDeleted={onDocumentsChanged}
             />
           ))}

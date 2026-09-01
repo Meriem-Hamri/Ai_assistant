@@ -10,6 +10,13 @@ import {
   getDocumentFileUrl,
 } from "@/lib/api/documents";
 
+const statusLabels = {
+  queued: "En attente",
+  processing: "Traitement...",
+  ready: "Prêt",
+  error: "Échec du traitement",
+} as const;
+
 interface DocumentItemProps {
   document: Document;
   isSelected: boolean;
@@ -25,6 +32,9 @@ export function DocumentItem({
 }: DocumentItemProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const isReady = document.status === "ready";
+  const canDelete =
+    document.status === "ready" || document.status === "error";
 
   const metadata = [
     document.category,
@@ -41,6 +51,10 @@ export function DocumentItem({
   }
 
   async function handleDelete() {
+    if (!canDelete) {
+      return;
+    }
+
     const confirmed = window.confirm(
       `Supprimer "${document.filename}" ?`
     );
@@ -76,7 +90,12 @@ export function DocumentItem({
         onClick={onSelect}
         aria-pressed={isSelected}
         className="document-main-button"
-        title={document.filename}
+        title={
+          isReady
+            ? document.filename
+            : `${document.filename} — ${statusLabels[document.status]}`
+        }
+        disabled={!isReady}
       >
         <svg
           className="document-icon"
@@ -103,6 +122,12 @@ export function DocumentItem({
               {metadata.join(" • ")}
             </span>
           )}
+
+          <span
+            className={`document-status document-status-${document.status}`}
+          >
+            {statusLabels[document.status]}
+          </span>
         </span>
       </button>
 
@@ -121,8 +146,12 @@ export function DocumentItem({
           type="button"
           onClick={() => void handleDelete()}
           className="document-action-button document-delete-button"
-          title="Supprimer le document"
-          disabled={deleting}
+          title={
+            canDelete
+              ? "Supprimer le document"
+              : "Suppression indisponible pendant le traitement"
+          }
+          disabled={deleting || !canDelete}
         >
           {deleting ? "Suppression..." : "Supprimer"}
         </button>

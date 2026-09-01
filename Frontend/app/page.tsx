@@ -11,10 +11,21 @@ import { useDocuments } from "@/hooks/useDocuments";
 export default function Home() {
   const { documents, loading, error, refreshDocuments } = useDocuments();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
+  const selectedDocument = documents.find(
+    (document) =>
+      document.id === selectedDocumentId && document.status === "ready"
+  );
+  const validSelectedDocumentId = selectedDocument?.id ?? null;
 
   useEffect(() => {
-    if (!loading && selectedDocumentId !== null && !documents.some((document) => document.id === selectedDocumentId)) {
+    if (
+      !loading &&
+      selectedDocumentId !== null &&
+      !documents.some(
+        (document) =>
+          document.id === selectedDocumentId && document.status === "ready"
+      )
+    ) {
       setSelectedDocumentId(null);
     }
   }, [documents, loading, selectedDocumentId]);
@@ -24,11 +35,11 @@ export default function Home() {
       sidebar={
         <Sidebar>
           <DocumentUpload onUploaded={refreshDocuments} />
-          <DocumentList documents={documents} loading={loading} error={error} selectedDocumentId={selectedDocumentId} onSelectDocument={setSelectedDocumentId} onDocumentsChanged={refreshDocuments} />
+          <DocumentList documents={documents} loading={loading} error={error} selectedDocumentId={validSelectedDocumentId} onSelectDocument={setSelectedDocumentId} onDocumentsChanged={refreshDocuments} />
         </Sidebar>
       }
     >
-      <ChatWindow selectedDocumentId={selectedDocumentId} selectedDocumentName={selectedDocument?.filename} />
+      <ChatWindow selectedDocumentId={validSelectedDocumentId} selectedDocumentName={selectedDocument?.filename} />
     </AppShell>
   );
 }
