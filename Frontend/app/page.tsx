@@ -18,6 +18,8 @@ export default function Home() {
     error: conversationsError,
   } = useConversations();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [isChatGenerating, setIsChatGenerating] = useState(false);
   const selectedDocument = documents.find(
     (document) =>
       document.id === selectedDocumentId && document.status === "ready"
@@ -45,13 +47,16 @@ export default function Home() {
             conversations={conversations}
             loading={conversationsLoading}
             error={conversationsError}
+            selectedConversationId={selectedConversationId}
+            disabled={isChatGenerating}
+            onSelectConversation={setSelectedConversationId}
           />
           <DocumentUpload onUploaded={refreshDocuments} />
           <DocumentList documents={documents} loading={loading} error={error} selectedDocumentId={validSelectedDocumentId} onSelectDocument={setSelectedDocumentId} onDocumentsChanged={refreshDocuments} />
         </Sidebar>
       }
     >
-      <ChatWindow selectedDocumentId={validSelectedDocumentId} selectedDocumentName={selectedDocument?.filename} />
+      <ChatWindow selectedConversationId={selectedConversationId} selectedDocumentId={validSelectedDocumentId} selectedDocumentName={selectedDocument?.filename} onGeneratingChange={setIsChatGenerating} />
     </AppShell>
   );
 }

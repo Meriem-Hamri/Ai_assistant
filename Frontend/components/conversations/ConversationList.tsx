@@ -5,12 +5,18 @@ interface ConversationListProps {
   conversations: Conversation[];
   loading: boolean;
   error: string | null;
+  selectedConversationId: string | null;
+  disabled: boolean;
+  onSelectConversation: (conversationId: string) => void;
 }
 
 export function ConversationList({
   conversations,
   loading,
   error,
+  selectedConversationId,
+  disabled,
+  onSelectConversation,
 }: ConversationListProps) {
   return (
     <section
@@ -35,6 +41,9 @@ export function ConversationList({
             <ConversationItem
               key={conversation.id}
               conversation={conversation}
+              selected={conversation.id === selectedConversationId}
+              disabled={disabled}
+              onSelect={onSelectConversation}
             />
           ))}
         </div>

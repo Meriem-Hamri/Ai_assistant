@@ -10,6 +10,7 @@ export interface RagFilters {
 }
 
 export interface ChatRequest {
+  conversation_id: string;
   question: string;
   document_id: string | null;
   category: string | null;
@@ -21,6 +22,7 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
+  conversation_id: string;
   answer: string;
   sources: ChatSource[];
 }
