@@ -92,6 +92,14 @@ button { font: inherit; }
 .message-content { max-width: 85%; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-user { justify-content: flex-end; }
 .message-user .message-content { padding: 10px 15px; border-radius: 18px; background: var(--sidebar-background); }
+.message-attachments { display: flex; max-width: 100%; flex-wrap: wrap; gap: 6px; margin-top: 9px; white-space: normal; }
+.message-attachments-all { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); font-size: 10px; }
+.message-attachment { display: flex; min-width: 0; max-width: 220px; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--background); }
+.message-attachment-icon { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: var(--text-secondary); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
+.message-attachment-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.message-attachment-copy strong, .message-attachment-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message-attachment-copy strong { font-size: 11px; font-weight: 600; line-height: 1.35; }
+.message-attachment-copy span { color: var(--text-tertiary); font-size: 9px; line-height: 1.35; }
 .message-assistant { justify-content: flex-start; }
 .message-assistant .message-content { max-width: 100%; }
 .message-sources { margin-top: 18px; white-space: normal; }
@@ -108,7 +116,21 @@ button { font: inherit; }
 .chat-generating { display: flex; align-items: center; gap: 10px; padding-bottom: 20px; color: var(--text-secondary); font-size: 13px; }
 .generating-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: generating-pulse 1.5s ease-in-out infinite; }
 .chat-error { width: min(calc(100% - 48px), 760px); margin: 0 auto 10px; color: #8a5555; font-size: 13px; line-height: 1.45; }
-.chat-input-container { padding: 10px 24px 18px; background: var(--background); }
+.composer-area { background: var(--background); padding-top: 8px; }
+.prompt-attachments { width: min(calc(100% - 48px), 760px); margin: 0 auto; }
+.prompt-attachments-all { display: inline-flex; width: auto; max-width: calc(100% - 48px); margin-left: max(24px, calc((100% - 760px) / 2)); align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); font-size: 11px; }
+.prompt-attachments-list { display: flex; gap: 8px; overflow-x: auto; padding: 2px 1px 4px; scrollbar-width: thin; }
+.prompt-attachment { display: flex; width: 220px; min-width: 180px; max-width: 240px; align-items: center; gap: 9px; padding: 8px 8px 8px 10px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--sidebar-background); }
+.prompt-attachment-icon { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: var(--text-secondary); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
+.prompt-attachment-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.prompt-attachment-copy strong, .prompt-attachment-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prompt-attachment-copy strong { color: var(--text-primary); font-size: 12px; font-weight: 600; }
+.prompt-attachment-copy span { color: var(--text-tertiary); font-size: 10px; }
+.prompt-attachment-remove { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1; }
+.prompt-attachment-remove:hover:not(:disabled) { background: var(--hover-background); color: var(--text-primary); }
+.prompt-attachment-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.prompt-attachment-remove:disabled { color: var(--text-tertiary); cursor: not-allowed; opacity: .55; }
+.chat-input-container { padding: 8px 24px 18px; }
 .chat-input-form { display: flex; width: min(100%, 760px); margin: 0 auto; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 16px; border: 1px solid var(--border-color); border-radius: 22px; box-shadow: 0 2px 10px rgba(0, 0, 0, .045); }
 .chat-input-form:focus-within { border-color: #c6c7c9; box-shadow: 0 0 0 2px rgba(47, 116, 100, .12); }
 .chat-input { min-height: 24px; max-height: 160px; flex: 1; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--text-primary); font: inherit; line-height: 1.5; }
@@ -126,5 +148,5 @@ button { font: inherit; }
 
 @keyframes generating-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 
-@media (max-width: 720px) { :root { --sidebar-width: 200px; } .chat-header, .message-list { padding-left: 16px; padding-right: 16px; } .chat-input-container { padding-left: 12px; padding-right: 12px; } }
+@media (max-width: 720px) { :root { --sidebar-width: 200px; } .chat-header, .message-list { padding-left: 16px; padding-right: 16px; } .prompt-attachments { width: calc(100% - 24px); } .prompt-attachments-all { margin-left: 12px; } .chat-input-container { padding-left: 12px; padding-right: 12px; } }
 @media (prefers-reduced-motion: reduce) { .document-entry { transition: none; } .generating-dot { animation: none; } }

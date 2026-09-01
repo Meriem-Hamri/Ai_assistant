@@ -12,7 +12,7 @@ export interface RagFilters {
 export interface ChatRequest {
   conversation_id: string;
   question: string;
-  document_id: string | null;
+  document_ids: string[];
   category: string | null;
   year: number | null;
   person: string | null;
@@ -32,4 +32,5 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: ChatSource[];
+  document_ids: string[];
 }

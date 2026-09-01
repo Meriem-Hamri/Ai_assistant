@@ -20,6 +20,7 @@ const statusLabels = {
 interface DocumentItemProps {
   document: Document;
   isSelected: boolean;
+  contextSelectionDisabled: boolean;
   onSelect: () => void;
   onDeleted: () => Promise<void>;
 }
@@ -27,6 +28,7 @@ interface DocumentItemProps {
 export function DocumentItem({
   document,
   isSelected,
+  contextSelectionDisabled,
   onSelect,
   onDeleted,
 }: DocumentItemProps) {
@@ -51,7 +53,7 @@ export function DocumentItem({
   }
 
   async function handleDelete() {
-    if (!canDelete) {
+    if (!canDelete || (contextSelectionDisabled && isSelected)) {
       return;
     }
 
@@ -89,13 +91,14 @@ export function DocumentItem({
         type="button"
         onClick={onSelect}
         aria-pressed={isSelected}
+        aria-disabled={!isReady || contextSelectionDisabled}
         className="document-main-button"
         title={
           isReady
             ? document.filename
             : `${document.filename} — ${statusLabels[document.status]}`
         }
-        disabled={!isReady}
+        disabled={!isReady || contextSelectionDisabled}
       >
         <svg
           className="document-icon"
@@ -147,11 +150,15 @@ export function DocumentItem({
           onClick={() => void handleDelete()}
           className="document-action-button document-delete-button"
           title={
-            canDelete
+            canDelete && !(contextSelectionDisabled && isSelected)
               ? "Supprimer le document"
-              : "Suppression indisponible pendant le traitement"
+              : contextSelectionDisabled && isSelected
+                ? "Suppression indisponible pendant la génération"
+                : "Suppression indisponible pendant le traitement"
           }
-          disabled={deleting || !canDelete}
+          disabled={
+            deleting || !canDelete || (contextSelectionDisabled && isSelected)
+          }
         >
           {deleting ? "Suppression..." : "Supprimer"}
         </button>

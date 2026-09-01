@@ -2,6 +2,7 @@ from app.prompting.config import PromptConfig
 from app.prompting.templates import (
     ANSWER_HEADER,
     CONTEXT_HEADER,
+    HISTORY_HEADER,
     PROMPT_TEMPLATE,
     QUESTION_HEADER,
 )
@@ -20,6 +21,14 @@ CITATION_OUTPUT_INSTRUCTION = (
     "Format exact : {\"answer\": \"...\", "
     "\"used_sources\": [\"SOURCE_1\"]}. "
     "N'ajoute ni bloc Markdown, ni commentaire, ni raisonnement."
+)
+
+
+CONVERSATION_HISTORY_INSTRUCTION = (
+    "L'historique récent sert uniquement à comprendre la continuité de la "
+    "conversation et les références comme 'il', 'elle', 'ils', 'le deuxième'. "
+    "Toutes les affirmations factuelles doivent rester fondées sur le contexte "
+    "documentaire fourni. L'historique n'est pas une source documentaire."
 )
 
 
@@ -45,6 +54,7 @@ class PromptBuilder:
         self,
         question: str,
         results: list[SearchResult],
+        conversation_history: list[dict[str, str]] | None = None,
     ) -> str:
         """
         Construit le prompt final destiné au LLM.
@@ -68,15 +78,68 @@ class PromptBuilder:
             max_context_length=self._config.max_context_length,
             include_metadata=self._config.include_source_metadata,
         )
+        history = self._build_history(conversation_history or [])
 
         return PROMPT_TEMPLATE.format(
             system_instruction=(
                 f"{self._config.system_instruction} "
+                f"{CONVERSATION_HISTORY_INSTRUCTION} "
                 f"{CITATION_OUTPUT_INSTRUCTION}"
             ),
+            history_header=HISTORY_HEADER,
+            history=history,
             context_header=CONTEXT_HEADER,
             context=context,
             question_header=QUESTION_HEADER,
             question=question.strip(),
             answer_header=ANSWER_HEADER,
         )
+
+    def _build_history(
+        self,
+        conversation_history: list[dict[str, str]],
+    ) -> str:
+        """Rend l'historique utile sans entamer le budget documentaire."""
+
+        rendered_messages: list[str] = []
+        labels = {"user": "Utilisateur", "assistant": "Assistant"}
+
+        for message in conversation_history:
+            role = message.get("role")
+            content = message.get("content")
+            if role not in labels or not isinstance(content, str):
+                continue
+            normalized_content = content.strip()
+            if normalized_content:
+                rendered_messages.append(
+                    f"{labels[role]}: {normalized_content}"
+                )
+
+        if not rendered_messages:
+            return "Aucun historique récent."
+
+        remaining_length = self._config.max_history_length
+        selected_messages: list[str] = []
+
+        for rendered_message in reversed(rendered_messages):
+            separator_length = 1 if selected_messages else 0
+            available_length = remaining_length - separator_length
+            if available_length <= 0:
+                break
+            if len(rendered_message) > available_length:
+                if not selected_messages:
+                    role_label, _, content = rendered_message.partition(": ")
+                    truncated_prefix = f"{role_label}: …"
+                    content_length = available_length - len(truncated_prefix)
+                    if content_length >= 0:
+                        selected_messages.append(
+                            f"{truncated_prefix}{content[-content_length:]}"
+                            if content_length
+                            else truncated_prefix
+                        )
+                break
+
+            selected_messages.append(rendered_message)
+            remaining_length = available_length - len(rendered_message)
+
+        return "\n".join(reversed(selected_messages))

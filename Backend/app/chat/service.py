@@ -34,6 +34,8 @@ class ChatService:
     via le pipeline RAG.
     """
 
+    _MAX_HISTORY_MESSAGES = 6
+
     def __init__(
         self,
         rag_pipeline: RAGPipeline,
@@ -83,6 +85,17 @@ class ChatService:
             ):
                 raise ChatDocumentNotReadyError
 
+        existing_messages = self._message_service.get_messages(
+            conversation_id
+        )
+        conversation_history = [
+            {
+                "role": message["role"],
+                "content": message["content"],
+            }
+            for message in existing_messages[-self._MAX_HISTORY_MESSAGES:]
+        ]
+
         try:
             persisted_user_message = self._message_service.create_message(
                 conversation_id=conversation_id,
@@ -105,6 +118,7 @@ class ChatService:
                 department=department,
                 document_type=document_type,
             ),
+            conversation_history=conversation_history,
         )
 
         source_snapshot = [

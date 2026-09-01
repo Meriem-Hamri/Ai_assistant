@@ -14,5 +14,6 @@ export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
   sources: ChatSource[];
+  document_ids: string[];
   created_at: string;
 }

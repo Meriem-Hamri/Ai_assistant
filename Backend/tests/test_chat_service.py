@@ -37,10 +37,15 @@ class FakeConversationService:
 
 
 class FakeMessageService:
-    def __init__(self, operations=None, assistant_error=None):
+    def __init__(self, operations=None, assistant_error=None, history=None):
         self.operations = operations if operations is not None else []
         self.assistant_error = assistant_error
+        self.history = history or []
         self.created = []
+
+    def get_messages(self, conversation_id):
+        self.operations.append(("get_messages", conversation_id))
+        return self.history
 
     def create_message(self, **message):
         self.operations.append(("create_message", message["role"]))
@@ -99,6 +104,7 @@ def build_service(
     rag_error=None,
     assistant_error=None,
     documents=None,
+    history=None,
 ):
     operations = []
     conversation_service = FakeConversationService(
@@ -108,6 +114,7 @@ def build_service(
     message_service = FakeMessageService(
         operations=operations,
         assistant_error=assistant_error,
+        history=history,
     )
     rag_pipeline = FakeRAGPipeline(
         response=rag_response,
@@ -188,6 +195,7 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
     assert operations == [
         ("get_conversation", CONVERSATION_ID),
         ("get_documents", ("document-1",)),
+        ("get_messages", CONVERSATION_ID),
         ("create_message", "user"),
         ("rag", "Quel est le salaire ?"),
         ("create_message", "assistant"),
@@ -212,6 +220,7 @@ def test_success_persists_messages_sources_and_updates_after_assistant():
     filters = rag.received_kwargs["filters"]
     assert rag.received_kwargs["question"] == "Quel est le salaire ?"
     assert rag.received_kwargs["document_ids"] == ("document-1",)
+    assert rag.received_kwargs["conversation_history"] == []
     assert filters.category == "finance"
     assert filters.year == 2016
     assert filters.person == "Ahmed"
@@ -243,8 +252,9 @@ def test_empty_selection_skips_document_lookup_and_means_all_documents():
     assert documents.received_ids == []
     assert messages.created[0]["document_ids"] == []
     assert rag.received_kwargs["document_ids"] == ()
-    assert operations[:3] == [
+    assert operations[:4] == [
         ("get_conversation", CONVERSATION_ID),
+        ("get_messages", CONVERSATION_ID),
         ("create_message", "user"),
         ("rag", "Question"),
     ]
@@ -335,9 +345,53 @@ def test_rag_failure_keeps_user_and_does_not_update_conversation():
     assert operations == [
         ("get_conversation", CONVERSATION_ID),
         ("get_documents", ("A",)),
+        ("get_messages", CONVERSATION_ID),
         ("create_message", "user"),
         ("rag", "Question"),
     ]
+
+
+def test_only_six_previous_messages_are_sent_to_rag_without_metadata():
+    history = [
+        {
+            "id": f"message-{index}",
+            "role": "user" if index % 2 == 0 else "assistant",
+            "content": f"Message {index}",
+            "sources": [{"document_id": "secret"}],
+            "document_ids": ["document-1"],
+            "created_at": datetime.now(timezone.utc),
+        }
+        for index in range(8)
+    ]
+    service, _, _, rag, _, operations = build_service(
+        conversation={"id": CONVERSATION_ID},
+        history=history,
+    )
+
+    service.send_message(CONVERSATION_ID, "Nouveau message")
+
+    assert rag.received_kwargs["conversation_history"] == [
+        {"role": message["role"], "content": message["content"]}
+        for message in history[-6:]
+    ]
+    assert operations.index(("get_messages", CONVERSATION_ID)) < (
+        operations.index(("create_message", "user"))
+    )
+
+
+def test_document_validation_failure_does_not_read_history():
+    service, _, _, _, _, operations = build_service(
+        conversation={"id": CONVERSATION_ID},
+    )
+
+    with pytest.raises(ChatDocumentNotFoundError):
+        service.send_message(
+            CONVERSATION_ID,
+            "Question",
+            document_ids=["missing"],
+        )
+
+    assert all(operation[0] != "get_messages" for operation in operations)
 
 
 def test_assistant_save_failure_does_not_update_conversation():

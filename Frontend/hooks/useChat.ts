@@ -17,7 +17,7 @@ interface UseChatResult {
   isLoadingHistory: boolean;
   isGenerating: boolean;
   error: string | null;
-  sendMessage: (question: string, documentId: string | null) => Promise<void>;
+  sendMessage: (question: string, documentIds: string[]) => Promise<void>;
 }
 
 function toChatMessages(messages: ConversationMessage[]): ChatMessage[] {
@@ -26,6 +26,7 @@ function toChatMessages(messages: ConversationMessage[]): ChatMessage[] {
     role: message.role,
     content: message.content,
     sources: message.sources,
+    document_ids: message.document_ids,
   }));
 }
 
@@ -137,11 +138,12 @@ export function useChat(
   );
 
   const sendMessage = useCallback(
-    async (question: string, documentId: string | null) => {
+    async (question: string, documentIds: string[]) => {
       const trimmedQuestion = question.trim();
       if (!trimmedQuestion || requestInFlightRef.current) {
         return;
       }
+      const submittedDocumentIds = [...documentIds];
 
       requestInFlightRef.current = true;
       ++historyRequestVersionRef.current;
@@ -182,6 +184,7 @@ export function useChat(
             id: crypto.randomUUID(),
             role: "user",
             content: trimmedQuestion,
+            document_ids: submittedDocumentIds,
           },
         ]);
         setMessagesConversationId(resolvedConversationId);
@@ -189,7 +192,7 @@ export function useChat(
         const request: ChatRequest = {
           conversation_id: resolvedConversationId,
           question: trimmedQuestion,
-          document_id: documentId,
+          document_ids: [...submittedDocumentIds],
           category: null,
           year: null,
           person: null,

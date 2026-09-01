@@ -7,8 +7,10 @@ interface DocumentListProps {
   documents: Document[];
   loading: boolean;
   error: string | null;
-  selectedDocumentId: string | null;
-  onSelectDocument: (documentId: string | null) => void;
+  selectedDocumentIds: string[];
+  disabled: boolean;
+  onToggleDocument: (documentId: string) => void;
+  onClearSelection: () => void;
   onDocumentsChanged: () => Promise<void>;
 }
 
@@ -16,8 +18,10 @@ export function DocumentList({
   documents,
   loading,
   error,
-  selectedDocumentId,
-  onSelectDocument,
+  selectedDocumentIds,
+  disabled,
+  onToggleDocument,
+  onClearSelection,
   onDocumentsChanged,
 }: DocumentListProps) {
   if (loading) {
@@ -56,10 +60,12 @@ export function DocumentList({
 
       <button
         type="button"
-        onClick={() => onSelectDocument(null)}
-        aria-pressed={selectedDocumentId === null}
+        onClick={onClearSelection}
+        aria-pressed={selectedDocumentIds.length === 0}
+        aria-disabled={disabled}
+        disabled={disabled}
         className={`document-entry all-documents-entry ${
-          selectedDocumentId === null ? "selected" : ""
+          selectedDocumentIds.length === 0 ? "selected" : ""
         }`}
       >
         <svg
@@ -84,10 +90,11 @@ export function DocumentList({
             <DocumentItem
               key={document.id}
               document={document}
-              isSelected={selectedDocumentId === document.id}
+              isSelected={selectedDocumentIds.includes(document.id)}
+              contextSelectionDisabled={disabled}
               onSelect={() => {
                 if (document.status === "ready") {
-                  onSelectDocument(document.id);
+                  onToggleDocument(document.id);
                 }
               }}
               onDeleted={onDocumentsChanged}
