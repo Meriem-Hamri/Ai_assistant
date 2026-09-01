@@ -149,13 +149,20 @@ def test_conversation_service_is_cached_and_reuses_repository(monkeypatch):
 def test_document_processor_factory_is_not_cached_and_reuses_dependencies(
     monkeypatch,
 ):
-    embedding_service = object()
+    embedding_services = []
     vector_store = object()
     metadata_extractor = object()
+
+    def create_embedding_service():
+        service = object()
+        embedding_services.append(service)
+        return service
+
+    monkeypatch.setattr(container, "EmbeddingService", create_embedding_service)
     monkeypatch.setattr(
         container,
         "get_embedding_service",
-        lambda: embedding_service,
+        lambda: pytest.fail("Le singleton BGE ne doit pas etre demande"),
     )
     monkeypatch.setattr(container, "get_vector_store", lambda: vector_store)
     monkeypatch.setattr(
@@ -169,8 +176,9 @@ def test_document_processor_factory_is_not_cached_and_reuses_dependencies(
 
     assert processor_a is not processor_b
     assert processor_a._indexer is not processor_b._indexer
-    assert processor_a._indexer._embedding_service is embedding_service
-    assert processor_b._indexer._embedding_service is embedding_service
+    assert len(embedding_services) == 2
+    assert processor_a._indexer._embedding_service is embedding_services[0]
+    assert processor_b._indexer._embedding_service is embedding_services[1]
     assert processor_a._indexer._vector_store is vector_store
     assert processor_b._indexer._vector_store is vector_store
     assert processor_a._metadata_extractor is metadata_extractor

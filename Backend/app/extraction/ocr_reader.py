@@ -8,6 +8,8 @@ ocr = PaddleOCR(
     use_doc_unwarping=False,
     use_textline_orientation=False,
     lang="fr",
+    enable_mkldnn=False,
+    text_detection_model_name="PP-OCRv5_mobile_det",
 )
 
 

@@ -93,7 +93,7 @@ def get_rag_pipeline() -> RAGPipeline:
 
 def create_document_processor() -> DocumentProcessor:
     indexer = DocumentIndexer(
-        embedding_service=get_embedding_service(),
+        embedding_service=EmbeddingService(),
         vector_store=get_vector_store(),
     )
     return DocumentProcessor(

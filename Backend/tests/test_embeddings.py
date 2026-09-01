@@ -1,10 +1,70 @@
 import numpy as np
+import pytest
 
 from app.embeddings.embedding_service import EmbeddingService
 from app.embeddings.utils import (
     normalize_vector,
     cosine_similarity,
 )
+
+
+class FakeEmbeddingModel:
+    dimension = 3
+
+    def __init__(self):
+        self.embedded_texts = []
+        self.embedded_batches = []
+
+    def embed(self, text):
+        self.embedded_texts.append(text)
+        return np.zeros(self.dimension)
+
+    def embed_batch(self, texts):
+        self.embedded_batches.append(texts)
+        return np.zeros((len(texts), self.dimension))
+
+
+@pytest.mark.parametrize("first_call", ["embed", "embed_batch"])
+def test_default_model_is_created_lazily_once(monkeypatch, first_call):
+    created_models = []
+
+    def create_model():
+        model = FakeEmbeddingModel()
+        created_models.append(model)
+        return model
+
+    monkeypatch.setattr(
+        "app.embeddings.models.bge_m3.BGEM3Embedding",
+        create_model,
+    )
+
+    service = EmbeddingService()
+
+    assert created_models == []
+
+    if first_call == "embed":
+        service.embed("premier texte")
+    else:
+        service.embed_batch(["premier texte"])
+
+    service.embed("deuxieme texte")
+    service.embed_batch(["troisieme texte"])
+
+    assert len(created_models) == 1
+    assert service.model is created_models[0]
+
+
+def test_injected_model_is_used_directly():
+    fake_model = FakeEmbeddingModel()
+    service = EmbeddingService(fake_model)
+
+    assert service.model is fake_model
+
+    service.embed("texte")
+    service.embed_batch(["autre texte"])
+
+    assert fake_model.embedded_texts == ["texte"]
+    assert fake_model.embedded_batches == [["autre texte"]]
 
 
 def test_embedding_service_initialization(embedding_service):
