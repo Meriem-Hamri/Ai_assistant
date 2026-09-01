@@ -8,9 +8,9 @@ def test_default_config():
 
     config = LLMConfig()
 
-    assert config.model == "qwen2.5:1.5b"
+    assert config.model == "qwen3:4b-instruct"
     assert config.temperature == 0.0
-    assert config.max_tokens == 512
+    assert config.max_tokens == 1024
     assert config.top_p == 0.9
     assert config.top_k == 40
     assert config.repeat_penalty == 1.1

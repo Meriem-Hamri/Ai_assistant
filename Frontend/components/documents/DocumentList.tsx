@@ -1,5 +1,7 @@
 
+import { useState } from "react";
 import { DocumentItem } from "./DocumentItem";
+import { DocumentUpload } from "./DocumentUpload";
 
 import type { Document } from "@/types/document";
 
@@ -7,84 +9,108 @@ interface DocumentListProps {
   documents: Document[];
   loading: boolean;
   error: string | null;
-  selectedDocumentId: string | null;
-  onSelectDocument: (documentId: string | null) => void;
+  selectedDocumentIds: string[];
+  disabled: boolean;
+  onToggleDocument: (documentId: string) => void;
   onDocumentsChanged: () => Promise<void>;
+  isOpen: boolean;
+  onToggleOpen: () => void;
 }
 
 export function DocumentList({
   documents,
   loading,
   error,
-  selectedDocumentId,
-  onSelectDocument,
+  selectedDocumentIds,
+  disabled,
+  onToggleDocument,
   onDocumentsChanged,
+  isOpen,
+  onToggleOpen,
 }: DocumentListProps) {
-  if (loading) {
-    return (
-      <p className="sidebar-status">
-        Chargement des documents...
-      </p>
-    );
-  }
-
-  if (error) {
-    return (
-      <p className="sidebar-status sidebar-status-error">
-        Impossible de charger les documents : {error}
-      </p>
-    );
-  }
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase("fr");
+  const filteredDocuments = normalizedQuery
+    ? documents.filter((document) =>
+        [document.filename, document.title]
+          .filter(Boolean)
+          .some((value) => value?.toLocaleLowerCase("fr").includes(normalizedQuery))
+      )
+    : documents;
 
   return (
     <section
       className="document-library"
       aria-labelledby="documents-heading"
     >
-      <h2
-        className="sidebar-section-title"
-        id="documents-heading"
-      >
-        Documents
+      <h2 className="sidebar-section-title" id="documents-heading">
+        <button
+          className="sidebar-section-toggle"
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls="documents-panel"
+          aria-label={`${isOpen ? "Replier" : "Ouvrir"} la section Documents`}
+          onClick={onToggleOpen}
+        >
+          <span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>
+          <span>Documents</span>
+        </button>
       </h2>
 
-      <button
-        type="button"
-        onClick={() => onSelectDocument(null)}
-        aria-pressed={selectedDocumentId === null}
-        className={`document-entry all-documents-entry ${
-          selectedDocumentId === null ? "selected" : ""
-        }`}
-      >
-        <svg
-          className="document-icon"
-          viewBox="0 0 20 20"
-          aria-hidden="true"
-        >
-          <path d="M4.75 3.75h7.5a2 2 0 0 1 2 2v10.5h-7.5a2 2 0 0 1-2-2V3.75Z" />
-          <path d="M14.25 6.25h1a1 1 0 0 1 1 1v9h-7.5" />
-        </svg>
+      <div className="sidebar-section-content" id="documents-panel" hidden={!isOpen}>
+        <DocumentUpload onUploaded={onDocumentsChanged} />
 
-        <span>Tous les documents</span>
-      </button>
+        <label className="visually-hidden" htmlFor="document-search">
+          Rechercher un document
+        </label>
+        <input
+          className="document-search"
+          id="document-search"
+          type="search"
+          value={searchQuery}
+          placeholder="Rechercher un document"
+          onChange={(event) => setSearchQuery(event.target.value)}
+        />
 
-      {documents.length === 0 ? (
-        <p className="sidebar-status">
-          Aucun document disponible.
-        </p>
-      ) : (
-        <div className="document-list">
-          {documents.map((document) => (
-            <DocumentItem
-              key={document.id}
-              document={document}
-              isSelected={selectedDocumentId === document.id}
-              onSelect={() => onSelectDocument(document.id)}
-              onDeleted={onDocumentsChanged}
-            />
-          ))}
-        </div>
-      )}
+        {loading ? (
+          <p className="sidebar-status">Chargement des documents...</p>
+        ) : error && documents.length === 0 ? (
+          <p className="sidebar-status sidebar-status-error" role="status">
+            Impossible de charger les documents : {error}
+          </p>
+        ) : (
+          <>
+            {error && (
+              <p className="sidebar-status sidebar-status-error" role="status">
+                Actualisation impossible : {error}
+              </p>
+            )}
+
+            {documents.length === 0 ? (
+              <p className="sidebar-status">Aucun document disponible.</p>
+            ) : filteredDocuments.length === 0 ? (
+              <p className="sidebar-status">Aucun document ne correspond à la recherche.</p>
+            ) : (
+              <div className="document-list">
+                {filteredDocuments.map((document) => (
+                  <DocumentItem
+                    key={document.id}
+                    document={document}
+                    isSelected={selectedDocumentIds.includes(document.id)}
+                    contextSelectionDisabled={disabled}
+                    onSelect={() => {
+                      if (document.status === "ready") {
+                        onToggleDocument(document.id);
+                      }
+                    }}
+                    onDeleted={onDocumentsChanged}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 }

@@ -1,35 +1,22 @@
-from fastapi import APIRouter, Depends,HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import (
-    get_conversation_repository,
+    get_conversation_service,
+    get_message_service,
 )
 from app.api.schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
+    MessageResponse,
 )
-from app.conversations.repository import (
-    ConversationRepository,
-)
-from app.conversations.service import (
-    ConversationService,
-)
+from app.conversations.message_service import MessageService
+from app.conversations.service import ConversationService
 
 
 router = APIRouter(
     prefix="/conversations",
     tags=["Conversations"],
 )
-
-
-def get_conversation_service(
-    repository: ConversationRepository = Depends(
-        get_conversation_repository
-    ),
-) -> ConversationService:
-
-    return ConversationService(
-        repository=repository
-    )
 
 
 @router.post(
@@ -58,6 +45,7 @@ def list_conversations(
 ):
     return service.get_conversations()
 
+
 @router.get(
     "/{conversation_id}",
     response_model=ConversationResponse,
@@ -79,3 +67,39 @@ def get_conversation(
         )
 
     return conversation
+
+
+@router.get(
+    "/{conversation_id}/messages",
+    response_model=list[MessageResponse],
+)
+def get_conversation_messages(
+    conversation_id: str,
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    message_service: MessageService = Depends(
+        get_message_service
+    ),
+):
+    conversation = conversation_service.get_conversation(
+        conversation_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation introuvable.",
+        )
+
+    messages = message_service.get_messages(conversation_id)
+    return [
+        MessageResponse(
+            **{
+                **message,
+                "sources": message.get("sources") or [],
+                "document_ids": message.get("document_ids") or [],
+            }
+        )
+        for message in messages
+    ]

@@ -3,7 +3,10 @@ Templates utilisés pour la construction des prompts RAG.
 """
 
 
-CONTEXT_HEADER = "CONTEXTE"
+HISTORY_HEADER = "HISTORIQUE RÉCENT"
+
+
+CONTEXT_HEADER = "CONTEXTE DOCUMENTAIRE"
 
 
 QUESTION_HEADER = "QUESTION"
@@ -22,6 +25,10 @@ Contenu du passage :
 
 
 PROMPT_TEMPLATE = """{system_instruction}
+
+{history_header}
+
+{history}
 
 {context_header}
 

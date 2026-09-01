@@ -22,5 +22,69 @@ services:
 
     restart: unless-stopped
 
+  chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: assistantai-chroma
+
+    ports:
+      - "8001:8000"
+
+    volumes:
+      - chroma_data:/data
+
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    container_name: assistantai-redis
+
+    ports:
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile.worker
+    container_name: assistantai-worker
+
+    command:
+      - celery
+      - -A
+      - app.celery_app.celery_app
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+      OLLAMA_HOST: http://host.docker.internal:11434
+
+    volumes:
+      - ./Backend/documents:/app/documents
+      - ${BGE_M3_CACHE_PATH}:/root/.cache/huggingface/hub/models--BAAI--bge-m3:ro
+
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+
+    restart: unless-stopped
+
+
 volumes:
   postgres_data:
+  chroma_data:

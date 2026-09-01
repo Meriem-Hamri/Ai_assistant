@@ -1,13 +1,7 @@
 from pathlib import Path
 
-from paddleocr import PaddleOCR
-
+from app.extraction.ocr_reader import ocr
 from app.models.document import Document, DocumentPage
-
-
-ocr = PaddleOCR(
-    lang="fr"
-)
 
 
 def extract_text_from_image(file_path: str) -> Document:

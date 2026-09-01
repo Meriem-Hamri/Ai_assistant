@@ -1,12 +1,9 @@
-import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-# Les tests d'API utilisent le modèle BGE-M3 déjà disponible localement.
-os.environ["HF_HUB_OFFLINE"] = "1"
-
 from app.api.main import app
+
 from app.api.routes.documents import get_document_service
 from app.documents.service import DocumentService
 
@@ -21,10 +18,9 @@ class FakeRepository:
 
 def create_service(documents: dict[str, dict]) -> DocumentService:
     return DocumentService(
-        indexer=None,
         repository=FakeRepository(documents),
         vector_store=None,
-        metadata_extractor=object(),
+        dispatcher=None,
     )
 
 

@@ -10,9 +10,17 @@ import {
   getDocumentFileUrl,
 } from "@/lib/api/documents";
 
+const statusLabels = {
+  queued: "En attente",
+  processing: "Traitement...",
+  ready: "Prêt",
+  error: "Échec du traitement",
+} as const;
+
 interface DocumentItemProps {
   document: Document;
   isSelected: boolean;
+  contextSelectionDisabled: boolean;
   onSelect: () => void;
   onDeleted: () => Promise<void>;
 }
@@ -20,17 +28,15 @@ interface DocumentItemProps {
 export function DocumentItem({
   document,
   isSelected,
+  contextSelectionDisabled,
   onSelect,
   onDeleted,
 }: DocumentItemProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const metadata = [
-    document.category,
-    document.document_type,
-    document.year?.toString(),
-  ].filter(Boolean);
+  const isReady = document.status === "ready";
+  const canDelete =
+    document.status === "ready" || document.status === "error";
 
   function handleOpen() {
     window.open(
@@ -41,6 +47,10 @@ export function DocumentItem({
   }
 
   async function handleDelete() {
+    if (!canDelete || (contextSelectionDisabled && isSelected)) {
+      return;
+    }
+
     const confirmed = window.confirm(
       `Supprimer "${document.filename}" ?`
     );
@@ -75,8 +85,14 @@ export function DocumentItem({
         type="button"
         onClick={onSelect}
         aria-pressed={isSelected}
+        aria-disabled={!isReady || contextSelectionDisabled}
         className="document-main-button"
-        title={document.filename}
+        title={
+          isReady
+            ? document.filename
+            : `${document.filename} — ${statusLabels[document.status]}`
+        }
+        disabled={!isReady || contextSelectionDisabled}
       >
         <svg
           className="document-icon"
@@ -87,46 +103,48 @@ export function DocumentItem({
           <path d="M11.25 2.75v3h3M7.25 9.25h4.5M7.25 12.25h4.5" />
         </svg>
 
-        <span className="document-copy">
-          <strong className="document-filename">
-            {document.filename}
-          </strong>
-
-          {document.title && (
-            <span className="document-title">
-              {document.title}
-            </span>
-          )}
-
-          {metadata.length > 0 && (
-            <span className="document-metadata">
-              {metadata.join(" • ")}
-            </span>
-          )}
+        <span className="document-filename">
+          {document.filename}
         </span>
       </button>
 
-      <div className="document-actions">
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="document-action-button"
-          title="Ouvrir le document"
-          disabled={deleting}
+      <details className="document-menu">
+        <summary
+          className="document-menu-button"
+          aria-label={`Actions pour ${document.filename}`}
+          title="Actions du document"
         >
-          Ouvrir
-        </button>
+          <span aria-hidden="true">⋯</span>
+        </summary>
+        <div className="document-action-menu">
+          <button
+            type="button"
+            onClick={handleOpen}
+            className="document-action-button"
+            disabled={deleting}
+          >
+            Ouvrir
+          </button>
 
-        <button
-          type="button"
-          onClick={() => void handleDelete()}
-          className="document-action-button document-delete-button"
-          title="Supprimer le document"
-          disabled={deleting}
-        >
-          {deleting ? "Suppression..." : "Supprimer"}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            className="document-action-button document-delete-button"
+            title={
+              canDelete && !(contextSelectionDisabled && isSelected)
+                ? "Supprimer le document"
+                : contextSelectionDisabled && isSelected
+                  ? "Suppression indisponible pendant la génération"
+                  : "Suppression indisponible pendant le traitement"
+            }
+            disabled={
+              deleting || !canDelete || (contextSelectionDisabled && isSelected)
+            }
+          >
+            {deleting ? "Suppression..." : "Supprimer"}
+          </button>
+        </div>
+      </details>
 
       {deleteError && (
         <p className="delete-error" role="status">

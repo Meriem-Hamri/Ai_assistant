@@ -8,15 +8,19 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from app.api.dependencies import (
+    get_document_processing_dispatcher,
     get_document_repository,
-    get_embedding_service,
-    get_metadata_extractor,
     get_vector_store,
 )
 from app.api.schemas.document import DocumentResponse
-from app.documents.indexer import DocumentIndexer
+from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.repository import DocumentRepository
-from app.documents.service import DocumentService
+from app.documents.service import (
+    DISPATCH_ERROR_MESSAGE,
+    DocumentDeletionConflictError,
+    DocumentProcessingDispatchError,
+    DocumentService,
+)
 
 
 router = APIRouter(
@@ -26,8 +30,8 @@ router = APIRouter(
 
 
 def get_document_service(
-    embedding_service=Depends(
-        get_embedding_service
+    dispatcher: DocumentProcessingDispatcher = Depends(
+        get_document_processing_dispatcher
     ),
     vector_store=Depends(
         get_vector_store
@@ -35,21 +39,11 @@ def get_document_service(
     repository: DocumentRepository = Depends(
         get_document_repository
     ),
-    metadata_extractor=Depends(
-        get_metadata_extractor
-    ),
 ) -> DocumentService:
-
-    indexer = DocumentIndexer(
-        embedding_service=embedding_service,
-        vector_store=vector_store,
-    )
-
     return DocumentService(
-        indexer=indexer,
         repository=repository,
         vector_store=vector_store,
-        metadata_extractor=metadata_extractor,
+        dispatcher=dispatcher,
     )
 
 
@@ -70,16 +64,22 @@ async def upload_document(
         get_document_service
     ),
 ):
-    return await service.upload_document(
-        file,
-        title=title,
-        category=category,
-        year=year,
-        person=person,
-        department=department,
-        document_type=document_type,
-        tags=tags,
-    )
+    try:
+        return await service.upload_document(
+            file,
+            title=title,
+            category=category,
+            year=year,
+            person=person,
+            department=department,
+            document_type=document_type,
+            tags=tags,
+        )
+    except DocumentProcessingDispatchError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=DISPATCH_ERROR_MESSAGE,
+        ) from error
 
 
 @router.get(
@@ -173,9 +173,15 @@ def delete_document(
         get_document_service
     ),
 ):
-    deleted = service.delete_document(
-        document_id
-    )
+    try:
+        deleted = service.delete_document(
+            document_id
+        )
+    except DocumentDeletionConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
 
     if not deleted:
         raise HTTPException(

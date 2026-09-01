@@ -65,15 +65,9 @@ export function DocumentUpload({
         onClick={() => inputRef.current?.click()}
       >
         {uploading
-          ? "Analyse du document en cours..."
-          : "+ Importer un document"}
+          ? "Import en cours..."
+          : "+ Importer"}
       </button>
-
-      {uploading && (
-        <p className="upload-status">
-          Extraction, analyse et indexation en cours. Cela peut prendre quelques minutes.
-        </p>
-      )}
 
       {error && (
         <p className="upload-error">

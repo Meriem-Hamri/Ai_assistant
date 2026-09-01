@@ -1,34 +1,113 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ConversationList } from "@/components/conversations/ConversationList";
 import { DocumentList } from "@/components/documents/DocumentList";
-import { DocumentUpload } from "@/components/documents/DocumentUpload";
 import { AppShell } from "@/components/layout/AppShell";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { useConversations } from "@/hooks/useConversations";
 import { useDocuments } from "@/hooks/useDocuments";
+import type { Conversation } from "@/types/conversation";
+import type { Document } from "@/types/document";
 
 export default function Home() {
   const { documents, loading, error, refreshDocuments } = useDocuments();
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
+  const {
+    conversations,
+    loading: conversationsLoading,
+    error: conversationsError,
+    refreshConversations,
+  } = useConversations();
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [isChatGenerating, setIsChatGenerating] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isConversationsOpen, setIsConversationsOpen] = useState(true);
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState(true);
+  const selectedDocuments = selectedDocumentIds
+    .map((documentId) => documents.find((document) => document.id === documentId))
+    .filter(
+      (document): document is Document => document?.status === "ready"
+    );
+  const validSelectedDocumentIds = selectedDocuments.map(
+    (document) => document.id
+  );
+
+  const handleToggleDocument = useCallback((documentId: string) => {
+    if (isChatGenerating) {
+      return;
+    }
+
+    setSelectedDocumentIds((current) =>
+      current.includes(documentId)
+        ? current.filter((selectedId) => selectedId !== documentId)
+        : [...current, documentId]
+    );
+  }, [isChatGenerating]);
+
+  const handleDocumentContextRestored = useCallback(
+    (documentIds: string[]) => {
+      if (isChatGenerating) {
+        return;
+      }
+
+      setSelectedDocumentIds([...documentIds]);
+    },
+    [isChatGenerating]
+  );
+
+  const handleNewConversation = useCallback(() => {
+    setSelectedConversationId(null);
+    setSelectedDocumentIds([]);
+  }, []);
 
   useEffect(() => {
-    if (!loading && selectedDocumentId !== null && !documents.some((document) => document.id === selectedDocumentId)) {
-      setSelectedDocumentId(null);
+    if (loading || isChatGenerating) {
+      return;
     }
-  }, [documents, loading, selectedDocumentId]);
+
+    const readyDocumentIds = new Set(
+      documents
+        .filter((document) => document.status === "ready")
+        .map((document) => document.id)
+    );
+
+    setSelectedDocumentIds((current) => {
+      const validIds = current.filter((documentId) =>
+        readyDocumentIds.has(documentId)
+      );
+
+      return validIds.length === current.length ? current : validIds;
+    });
+  }, [documents, isChatGenerating, loading]);
+
+  const handleConversationCreated = (conversation: Conversation) => {
+    setSelectedConversationId(conversation.id);
+    void refreshConversations();
+  };
 
   return (
     <AppShell
+      sidebarOpen={isSidebarOpen}
       sidebar={
-        <Sidebar>
-          <DocumentUpload onUploaded={refreshDocuments} />
-          <DocumentList documents={documents} loading={loading} error={error} selectedDocumentId={selectedDocumentId} onSelectDocument={setSelectedDocumentId} onDocumentsChanged={refreshDocuments} />
+        <Sidebar onClose={() => setIsSidebarOpen(false)}>
+          <ConversationList
+            conversations={conversations}
+            loading={conversationsLoading}
+            error={conversationsError}
+            selectedConversationId={selectedConversationId}
+            disabled={isChatGenerating}
+            onNewConversation={handleNewConversation}
+            onSelectConversation={setSelectedConversationId}
+            isOpen={isConversationsOpen}
+            onToggleOpen={() => setIsConversationsOpen((current) => !current)}
+          />
+          <DocumentList documents={documents} loading={loading} error={error} selectedDocumentIds={validSelectedDocumentIds} disabled={isChatGenerating} onToggleDocument={handleToggleDocument} onDocumentsChanged={refreshDocuments} isOpen={isDocumentsOpen} onToggleOpen={() => setIsDocumentsOpen((current) => !current)} />
         </Sidebar>
       }
     >
-      <ChatWindow selectedDocumentId={selectedDocumentId} selectedDocumentName={selectedDocument?.filename} />
+      <ChatWindow selectedConversationId={selectedConversationId} selectedDocumentIds={validSelectedDocumentIds} selectedDocuments={selectedDocuments} availableDocuments={documents} onRemoveDocument={handleToggleDocument} onConversationCreated={handleConversationCreated} onDocumentContextRestored={handleDocumentContextRestored} onGeneratingChange={setIsChatGenerating} sidebarOpen={isSidebarOpen} onOpenSidebar={() => setIsSidebarOpen(true)} />
     </AppShell>
   );
 }

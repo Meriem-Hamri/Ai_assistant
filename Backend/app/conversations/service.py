@@ -25,16 +25,15 @@ class ConversationService:
         Crée une nouvelle conversation.
         """
 
+        normalized_title = title.strip() if title else ""
+        if len(normalized_title) > 80:
+            normalized_title = f"{normalized_title[:77]}..."
         conversation = {
             "id": str(uuid4()),
-            "title": title or "Nouvelle conversation",
+            "title": normalized_title or "Nouvelle conversation",
         }
 
-        self._repository.save(
-            conversation
-        )
-
-        return conversation
+        return self._repository.save(conversation)
 
     def get_conversations(self) -> list[dict]:
         """
@@ -54,3 +53,15 @@ class ConversationService:
         return self._repository.get_by_id(
             conversation_id
         )
+
+    def update_conversation(
+        self,
+        conversation_id: str,
+        updates: dict,
+    ) -> dict | None:
+        """Met à jour une conversation existante."""
+        return self._repository.update(conversation_id, updates)
+
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """Supprime une conversation existante."""
+        return self._repository.delete(conversation_id)

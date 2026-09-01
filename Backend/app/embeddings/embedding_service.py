@@ -1,5 +1,4 @@
 from app.embeddings.base import BaseEmbeddingModel
-from app.embeddings.models.bge_m3 import BGEM3Embedding
 
 
 class EmbeddingService:
@@ -17,30 +16,38 @@ class EmbeddingService:
         Si aucun modèle n'est fourni, BGE-M3 est utilisé.
         """
 
-        self._model = model or BGEM3Embedding()
+        self._model = model
+
+    def _get_model(self) -> BaseEmbeddingModel:
+        if self._model is None:
+            from app.embeddings.models.bge_m3 import BGEM3Embedding
+
+            self._model = BGEM3Embedding()
+
+        return self._model
 
     @property
     def model(self) -> BaseEmbeddingModel:
         """
         Retourne le modèle utilisé.
         """
-        return self._model
+        return self._get_model()
 
     def embed(self, text: str):
         """
         Génère l'embedding d'un texte.
         """
-        return self._model.embed(text)
+        return self._get_model().embed(text)
 
     def embed_batch(self, texts: list[str]):
         """
         Génère les embeddings d'une liste de textes.
         """
-        return self._model.embed_batch(texts)
+        return self._get_model().embed_batch(texts)
 
     @property
     def dimension(self):
         """
         Retourne la dimension des embeddings.
         """
-        return self._model.dimension
+        return self._get_model().dimension

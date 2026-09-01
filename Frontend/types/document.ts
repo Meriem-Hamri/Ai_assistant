@@ -1,3 +1,9 @@
+export type DocumentStatus =
+  | "queued"
+  | "processing"
+  | "ready"
+  | "error";
+
 export interface Document {
   id: string;
   filename: string;
@@ -5,7 +11,7 @@ export interface Document {
   page_count: number;
   size: number;
   created_at: string;
-  status: string;
+  status: DocumentStatus;
 
   title: string | null;
   category: string | null;

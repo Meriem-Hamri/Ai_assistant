@@ -4,8 +4,8 @@ uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 
 # RAG / vector store
-chromadb>=0.5.0
-numpy>=1.26.0
+chromadb==1.5.9
+numpy==1.26.4
 
 # LLM / embeddings
 ollama>=0.3.0
@@ -16,8 +16,18 @@ torch>=2.3.0
 pymupdf>=1.24.10
 python-docx>=1.1.0
 pillow>=10.4.0
-paddleocr>=2.7.3
-paddlepaddle>=2.6.1
+paddlepaddle==3.2.0
+paddleocr==3.3.3
+paddlex==3.3.13
+
+# Database
+SQLAlchemy>=2.0.0
+psycopg[binary]>=3.2.0
+alembic>=1.13.0
+python-dotenv>=1.0.0
+
+# Background jobs
+celery[redis]>=5.4
 
 # Testing
 pytest>=8.2.0

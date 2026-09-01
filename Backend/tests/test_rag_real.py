@@ -1,4 +1,5 @@
 from pathlib import Path
+from chromadb import EphemeralClient
 
 from app.extraction.extraction_service import extract_document
 from app.cleaning.cleaner import clean_document
@@ -15,9 +16,6 @@ from app.rag.pipeline import RAGPipeline
 PDF_PATH = Path(
     "documents/pdf/DOCUMENT_DE_TEST_ASSISTANT_RAG.pdf"
 )
-
-DB_PATH = Path("data/test_real_rag")
-
 
 def create_pipeline():
     # --------------------------------------------------
@@ -66,11 +64,12 @@ def create_pipeline():
     # --------------------------------------------------
 
     config = VectorStoreConfig(
-        persist_directory=DB_PATH,
+        host="localhost",
+        port=8001,
         collection_name="real_rag_test",
     )
 
-    store = ChromaStore(config)
+    store = ChromaStore(config, client=EphemeralClient())
 
     # On nettoie la collection avant le test
     store.clear()

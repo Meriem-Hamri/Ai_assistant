@@ -2,7 +2,6 @@
 # Implémentation avec ChromaDB
 
 from dataclasses import dataclass
-from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -11,8 +10,11 @@ class VectorStoreConfig:
     Configuration du Vector Store.
 
     Attributes:
-        persist_directory:
-            Répertoire où ChromaDB stockera les données.
+        host:
+            Nom d'hôte du serveur ChromaDB.
+
+        port:
+            Port HTTP du serveur ChromaDB.
 
         collection_name:
             Nom de la collection utilisée pour indexer les chunks.
@@ -25,7 +27,9 @@ class VectorStoreConfig:
             - ip
     """
 
-    persist_directory: Path
+    host: str
+
+    port: int
 
     collection_name: str
 

@@ -2,8 +2,9 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
+    conversation_id: str
     question: str
-    document_id: str | None = None
+    document_ids: list[str] = Field(default_factory=list)
     category: str | None = None
     year: int | None = Field(default=None, ge=1000, le=9999)
     person: str | None = None
@@ -22,5 +23,6 @@ class ChatSourceResponse(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    conversation_id: str
     answer: str
     sources: list[ChatSourceResponse]

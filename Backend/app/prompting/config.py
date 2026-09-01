@@ -11,6 +11,8 @@ class PromptConfig:
 
     max_context_length: int = 8000
 
+    max_history_length: int = 2000
+
     include_source_metadata: bool = True
 
     system_instruction: str = (
@@ -41,5 +43,15 @@ class PromptConfig:
         "Pour une liste ou une synthèse, examine l'ensemble du contexte et "
         "inclue tous les éléments explicitement présents, sans connaissance "
         "externe ni explication non présente dans le contexte. "
+        "Tu peux comparer plusieurs documents, identifier leurs points communs "
+        "et leurs différences, synthétiser plusieurs passages et établir une "
+        "relation raisonnable directement soutenue par le contexte. "
+        "Tu peux effectuer une déduction logique à partir des informations "
+        "présentes, même si la conclusion n'est pas formulée mot pour mot "
+        "dans les documents. N'introduis aucun fait externe, n'invente aucune "
+        "information et n'affirme aucune relation qui n'est pas soutenue par "
+        "les passages. Utilise \"Information non disponible dans les "
+        "documents.\" uniquement lorsque le contexte fourni ne permet réellement "
+        "pas une réponse fondée. "
         "Réponds en français, de manière concise et naturelle."
     )

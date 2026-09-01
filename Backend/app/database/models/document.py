@@ -17,25 +17,25 @@ class DocumentModel(Base):
         default=uuid.uuid4,
     )
 
-    original_name: Mapped[str] = mapped_column(
+    filename: Mapped[str] = mapped_column(
         String,
         nullable=False,
     )
 
-    stored_name: Mapped[str] = mapped_column(
+    type: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    size: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+    )
+
+    path: Mapped[str] = mapped_column(
         String,
         nullable=False,
         unique=True,
-    )
-
-    extension: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-    )
-
-    file_size: Mapped[int] = mapped_column(
-        BigInteger,
-        nullable=False,
     )
 
     status: Mapped[str] = mapped_column(

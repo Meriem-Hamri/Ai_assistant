@@ -1,11 +1,12 @@
-from app.extraction.pdf_reader import extract_pdf_text
+from pathlib import Path
 
-document = extract_pdf_text("documents/pdf/50_pages.pdf")
+from app.extraction.pdf_reader import extract_text_from_pdf
 
-print("=" * 50)
-print(document.filename)
 
-for page in document.pages:
-    print(f"\nPage {page.page_number}")
-    print("-" * 30)
-    print(page.text)
+def test_extract_text_from_pdf():
+    file_path = Path("documents/pdf/final.pdf")
+
+    document = extract_text_from_pdf(str(file_path))
+
+    assert document.filename == file_path.name
+    assert len(document.pages) > 0

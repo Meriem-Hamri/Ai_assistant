@@ -1,5 +1,5 @@
-from chromadb import PersistentClient
-from chromadb.api.models.Collection import Collection
+from chromadb import Collection, HttpClient
+from chromadb.api import ClientAPI
 
 from app.vectorstore.base import BaseVectorStore
 from app.vectorstore.config import VectorStoreConfig
@@ -17,7 +17,11 @@ class ChromaStore(BaseVectorStore):
         """
         Implémentation du Vector Store utilisant ChromaDB.
         """
-        def __init__(self, config: VectorStoreConfig) -> None:
+        def __init__(
+            self,
+            config: VectorStoreConfig,
+            client: ClientAPI | None = None,
+        ) -> None:
             """
             Initialise le Vector Store.
 
@@ -26,20 +30,18 @@ class ChromaStore(BaseVectorStore):
             """
             self._config = config
 
-            self._create_client()
+            self._client = (
+                client if client is not None else self._create_client()
+            )
             self._create_collection()
 
-        def _create_client(self) -> None:
+        def _create_client(self) -> ClientAPI:
             """
             Crée le client ChromaDB.
             """
-            self._config.persist_directory.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
-            self._client = PersistentClient(
-                path=str(self._config.persist_directory)
+            return HttpClient(
+                host=self._config.host,
+                port=self._config.port,
             )
 
         def _create_collection(self) -> None:
@@ -145,7 +147,7 @@ class ChromaStore(BaseVectorStore):
             embedding: list[float],
             top_k: int = 5,
             max_distance: float | None = None,
-            document_id: str | None = None,
+            document_ids: list[str] | tuple[str, ...] | None = None,
             filters: DocumentFilters | None = None,
         ) -> list[SearchResult]:
             """
@@ -161,6 +163,10 @@ class ChromaStore(BaseVectorStore):
                 max_distance:
                     Distance maximale autorisée pour un résultat.
                     Si None, aucun filtrage par distance n'est appliqué.
+
+                document_ids:
+                    Documents à rechercher. None ou une collection vide
+                    recherche dans tous les documents.
 
             Returns:
                 Liste des résultats de recherche triés par distance
@@ -214,7 +220,7 @@ class ChromaStore(BaseVectorStore):
             }
 
             filters = filters or DocumentFilters()
-            where = filters.to_chroma_where(document_id=document_id)
+            where = filters.to_chroma_where(document_ids=document_ids)
             if where is not None:
                 query_kwargs["where"] = where
 

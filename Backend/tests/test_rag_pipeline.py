@@ -1,5 +1,6 @@
 import pytest
 
+from app.prompting.prompt_builder import PromptBuilder
 from app.rag.config import RAGConfig
 from app.rag.exceptions import (
     RAGEmbeddingError,
@@ -25,26 +26,31 @@ class FakeEmbeddingService:
 class FakeVectorStore:
     """Faux Vector Store utilisé pour les tests."""
 
-    def __init__(self, results=None):
-        self.results = results or []
+    def __init__(self, results=None, results_by_document_ids=None):
+        self.results = [] if results is None else results
+        self.results_by_document_ids = results_by_document_ids or {}
         self.received_embeddings = []
         self.received_top_k = []
         self.received_max_distances = []
         self.received_filters = []
+        self.received_document_ids = []
 
     def search(
         self,
         embedding,
         top_k=5,
         max_distance=None,
-        document_id=None,
+        document_ids=None,
         filters=None,
     ):
         self.received_embeddings.append(embedding)
         self.received_top_k.append(top_k)
         self.received_max_distances.append(max_distance)
         self.received_filters.append(filters)
-        return self.results
+        self.received_document_ids.append(document_ids)
+        key = tuple(document_ids or ())
+        results = self.results_by_document_ids.get(key, self.results)
+        return results[:top_k]
 
 
 class FakePromptBuilder:
@@ -54,10 +60,12 @@ class FakePromptBuilder:
         self.prompt = prompt
         self.received_questions = []
         self.received_results = []
+        self.received_histories = []
 
-    def build(self, question, results):
+    def build(self, question, results, conversation_history=None):
         self.received_questions.append(question)
         self.received_results.append(results)
+        self.received_histories.append(conversation_history)
         return self.prompt
 
 
@@ -101,6 +109,7 @@ def create_pipeline(
     results=None,
     llm_answer="Réponse générée.",
     top_k=5,
+    results_by_document_ids=None,
 ):
     """
     Crée un pipeline avec des dépendances simulées.
@@ -109,7 +118,8 @@ def create_pipeline(
     embedding_service = FakeEmbeddingService()
 
     vector_store = FakeVectorStore(
-        results=results or []
+        results=results,
+        results_by_document_ids=results_by_document_ids,
     )
 
     prompt_builder = FakePromptBuilder()
@@ -224,6 +234,28 @@ def test_vector_store_receives_document_filters():
     assert vector_store.received_filters == [filters]
 
 
+@pytest.mark.parametrize(
+    ("document_ids", "expected"),
+    [
+        (None, ()),
+        ([], ()),
+        (["A"], ("A",)),
+        ([" A ", "B", "A", ""], ("A", "B")),
+    ],
+)
+def test_vector_store_receives_normalized_document_ids(
+    document_ids,
+    expected,
+):
+    pipeline, _, vector_store, _, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    pipeline.answer("Question", document_ids=document_ids)
+
+    assert vector_store.received_document_ids == [expected]
+
+
 def test_retrieval_query_is_enriched_for_technology_question():
     pipeline, embedding_service, _, _, _ = create_pipeline(
         results=[create_result()]
@@ -303,6 +335,422 @@ def test_results_are_diversified_without_document_filter():
         "doc-a",
         "doc-b",
     ]
+
+
+def test_retrieval_query_uses_only_two_latest_user_messages():
+    pipeline, embedding_service, _, prompt_builder, _ = create_pipeline(
+        results=[create_result()]
+    )
+    history = [
+        {"role": "user", "content": "Ancienne question"},
+        {"role": "assistant", "content": "Réponse à ignorer pour le retrieval"},
+        {"role": "user", "content": "Avant-dernière question"},
+        {"role": "assistant", "content": "Autre réponse à ignorer"},
+        {"role": "user", "content": "Dernière question"},
+    ]
+
+    pipeline.answer(
+        "Question actuelle",
+        conversation_history=history,
+    )
+
+    assert embedding_service.received_questions == [
+        "Contexte utilisateur récent:\n"
+        "Avant-dernière question\n\n"
+        "Dernière question\n\n"
+        "Question actuelle:\n"
+        "Question actuelle"
+    ]
+    assert prompt_builder.received_histories == [history]
+    assert prompt_builder.received_questions == ["Question actuelle"]
+
+
+def test_none_history_is_normalized_before_prompt_builder():
+    pipeline, embedding_service, _, prompt_builder, _ = create_pipeline(
+        results=[create_result()]
+    )
+
+    pipeline.answer("Question autonome", conversation_history=None)
+
+    assert embedding_service.received_questions == ["Question autonome"]
+    assert prompt_builder.received_histories == [[]]
+
+
+def test_results_are_not_diversified_for_one_selected_document():
+    results = [
+        create_result(
+            text=f"Information détaillée {index}. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id=f"chunk-{index}",
+        )
+        for index in range(4)
+    ]
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=4,
+    )
+
+    pipeline.answer("Question", document_ids=["doc-a"])
+
+    assert prompt_builder.received_results == [results]
+
+
+def test_results_are_diversified_for_multiple_selected_documents():
+    results = [
+        create_result(
+            text=f"Information détaillée A {index}. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id=f"chunk-a-{index}",
+        )
+        for index in range(4)
+    ] + [
+        create_result(
+            text="Information détaillée B. " + "B" * 120,
+            document_id="doc-b",
+            chunk_id="chunk-b",
+        )
+    ]
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results=results,
+        top_k=4,
+    )
+
+    pipeline.answer("Question", document_ids=["doc-a", "doc-b"])
+
+    assert [
+        result.document_id
+        for result in prompt_builder.received_results[0]
+    ] == ["doc-a", "doc-a", "doc-a", "doc-b"]
+
+
+def test_normal_multi_document_question_keeps_existing_retrieval_behavior():
+    result = create_result(
+        text="Information détaillée A. " + "A" * 120,
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    pipeline, _, vector_store, prompt_builder, llm = create_pipeline(
+        results=[result]
+    )
+
+    pipeline.answer(
+        "Quelle information est disponible ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert vector_store.received_document_ids == [("doc-a", "doc-b")]
+    assert prompt_builder.received_results == [[result]]
+    assert llm.received_prompts == [prompt_builder.prompt]
+
+
+def test_comparative_question_with_global_coverage_needs_no_targeted_search():
+    results = [
+        create_result(
+            text="Information détaillée A. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id="chunk-a",
+        ),
+        create_result(
+            text="Information détaillée B. " + "B" * 120,
+            document_id="doc-b",
+            chunk_id="chunk-b",
+        ),
+    ]
+    pipeline, _, vector_store, prompt_builder, _ = create_pipeline(
+        results=results
+    )
+
+    pipeline.answer(
+        "Quel est leur point commun ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert vector_store.received_document_ids == [("doc-a", "doc-b")]
+    assert {
+        result.document_id
+        for result in prompt_builder.received_results[0]
+    } == {"doc-a", "doc-b"}
+
+
+def test_comparative_question_targets_missing_document_with_same_embedding():
+    result_a = create_result(
+        text="Information détaillée A. " + "A" * 120,
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    results_b = [
+        create_result(
+            text=f"Information détaillée B {index}. " + "B" * 120,
+            document_id="doc-b",
+            chunk_id=f"chunk-b-{index}",
+        )
+        for index in range(4)
+    ]
+    pipeline, embedding_service, vector_store, prompt_builder, _ = (
+        create_pipeline(
+            results_by_document_ids={
+                ("doc-a", "doc-b"): [result_a],
+                ("doc-b",): results_b,
+            }
+        )
+    )
+
+    pipeline.answer(
+        "Existe-t-il un lien en commun entre ces documents ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert vector_store.received_document_ids == [
+        ("doc-a", "doc-b"),
+        ("doc-b",),
+    ]
+    assert vector_store.received_top_k == [20, 3]
+    assert vector_store.received_embeddings[0] is embedding_service.embedding
+    assert vector_store.received_embeddings[1] is embedding_service.embedding
+    selected_results = prompt_builder.received_results[0]
+    assert sum(
+        result.document_id == "doc-b"
+        for result in selected_results
+    ) == 3
+    assert {result.document_id for result in selected_results} == {
+        "doc-a",
+        "doc-b",
+    }
+
+
+def test_grounded_comparison_from_two_documents_is_not_replaced_by_fallback():
+    result_a = create_result(
+        text=(
+            "Le tableau de bord utilise des indicateurs pour suivre "
+            "l'activite et faciliter l'analyse des donnees."
+        ),
+        document_name="final.pdf",
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    result_b = create_result(
+        text=(
+            "Le rapport utilise des indicateurs pour suivre l'evolution "
+            "de la consommation et des emissions."
+        ),
+        document_name="Environnement.docx",
+        document_id="doc-b",
+        chunk_id="chunk-b",
+    )
+    embedding_service = FakeEmbeddingService()
+    vector_store = FakeVectorStore(
+        results_by_document_ids={
+            ("doc-a", "doc-b"): [result_a],
+            ("doc-b",): [result_b],
+        }
+    )
+    llm = FakeLLM(
+        answer=(
+            '{"answer":"Les deux documents ont en commun le suivi '
+            'd activites au moyen d indicateurs.",'
+            '"used_sources":["SOURCE_1","SOURCE_2"]}'
+        )
+    )
+    pipeline = RAGPipeline(
+        embedding_service=embedding_service,
+        vector_store=vector_store,
+        prompt_builder=PromptBuilder(),
+        llm=llm,
+        config=RAGConfig(),
+    )
+
+    response = pipeline.answer(
+        "y a t il un lien en commun entre ces documents ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert response.answer != RAGPipeline.NO_RESULTS_MESSAGE
+    assert response.answer == (
+        "Les deux documents ont en commun le suivi d activites au moyen "
+        "d indicateurs."
+    )
+    assert {source.document_id for source in response.sources} == {
+        "doc-a",
+        "doc-b",
+    }
+    assert "final.pdf" in llm.received_prompts[0]
+    assert "Environnement.docx" in llm.received_prompts[0]
+
+
+def test_comparative_retrieval_merge_deduplicates_chunk_ids():
+    result_a = create_result(
+        text="Information détaillée A. " + "A" * 120,
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    result_b = create_result(
+        text="Information détaillée B. " + "B" * 120,
+        document_id="doc-b",
+        chunk_id="chunk-b",
+    )
+    pipeline, _, _, prompt_builder, _ = create_pipeline(
+        results_by_document_ids={
+            ("doc-a", "doc-b"): [result_a],
+            ("doc-b",): [result_b, result_b],
+        }
+    )
+
+    pipeline.answer(
+        "Compare ces deux documents.",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    selected_chunk_ids = [
+        result.chunk_id
+        for result in prompt_builder.received_results[0]
+    ]
+    assert selected_chunk_ids.count("chunk-b") == 1
+
+
+def test_comparative_question_without_one_document_stops_before_llm():
+    result_a = create_result(
+        text="Information détaillée A. " + "A" * 120,
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    pipeline, _, vector_store, prompt_builder, llm = create_pipeline(
+        results_by_document_ids={
+            ("doc-a", "doc-b"): [result_a],
+            ("doc-b",): [],
+        }
+    )
+
+    response = pipeline.answer(
+        "Quelles différences entre ces documents ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert response.answer == RAGPipeline.NO_RESULTS_MESSAGE
+    assert response.sources == []
+    assert vector_store.received_document_ids == [
+        ("doc-a", "doc-b"),
+        ("doc-b",),
+    ]
+    assert prompt_builder.received_results == []
+    assert llm.received_prompts == []
+
+
+def test_normal_question_can_answer_when_one_selected_document_has_no_result():
+    result_a = create_result(
+        text="Information détaillée A. " + "A" * 120,
+        document_id="doc-a",
+        chunk_id="chunk-a",
+    )
+    pipeline, _, vector_store, prompt_builder, llm = create_pipeline(
+        results=[result_a]
+    )
+
+    response = pipeline.answer(
+        "Que dit le premier document ?",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    assert response.answer == "Réponse générée."
+    assert vector_store.received_document_ids == [("doc-a", "doc-b")]
+    assert prompt_builder.received_results == [[result_a]]
+    assert llm.received_prompts == [prompt_builder.prompt]
+
+
+def test_comparative_question_does_not_inject_history_into_retrieval_query():
+    results = [
+        create_result(
+            text="Information détaillée A. " + "A" * 120,
+            document_id="doc-a",
+            chunk_id="chunk-a",
+        ),
+        create_result(
+            text="Information détaillée B. " + "B" * 120,
+            document_id="doc-b",
+            chunk_id="chunk-b",
+        ),
+    ]
+    pipeline, embedding_service, _, prompt_builder, _ = create_pipeline(
+        results=results
+    )
+    history = [
+        {"role": "user", "content": "Ancienne question sur les outils"},
+        {"role": "assistant", "content": "Ancienne réponse"},
+    ]
+    question = "Y a-t-il un point commun entre ces documents ?"
+
+    pipeline.answer(
+        question,
+        document_ids=["doc-a", "doc-b"],
+        conversation_history=history,
+    )
+
+    assert embedding_service.received_questions == [question]
+    assert prompt_builder.received_histories == [history]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quel est leur point commun ?",
+        "Ont-ils un lien en commun ?",
+        "Quelle est leur différence ?",
+        "Compare les rapports.",
+        "Quel rapport existe entre ces documents ?",
+        "Analyse ces deux documents.",
+    ],
+)
+def test_comparative_question_detection(question):
+    assert RAGPipeline._is_comparative_question(
+        question,
+        ("doc-a", "doc-b"),
+    )
+    assert not RAGPipeline._is_comparative_question(
+        question,
+        ("doc-a",),
+    )
+
+
+def test_regression_comparative_retrieval_covers_final_and_environment():
+    final_results = [
+        create_result(
+            text=f"Passage final {index}. " + "A" * 120,
+            document_name="final.pdf",
+            document_id="final-id",
+            chunk_id=f"final-chunk-{index}",
+        )
+        for index in range(20)
+    ]
+    environment_results = [
+        create_result(
+            text=f"Passage environnement {index}. " + "B" * 120,
+            document_name="Environnement.docx",
+            document_id="environment-id",
+            chunk_id=f"environment-chunk-{index}",
+        )
+        for index in range(3)
+    ]
+    pipeline, _, vector_store, prompt_builder, _ = create_pipeline(
+        results_by_document_ids={
+            ("final-id", "environment-id"): final_results,
+            ("environment-id",): environment_results,
+        },
+        top_k=10,
+    )
+
+    pipeline.answer(
+        "y a t il un lien en commun entre ces documents ?",
+        document_ids=["final-id", "environment-id"],
+    )
+
+    assert vector_store.received_document_ids == [
+        ("final-id", "environment-id"),
+        ("environment-id",),
+    ]
+    selected_results = prompt_builder.received_results[0]
+    assert {result.document_name for result in selected_results} == {
+        "final.pdf",
+        "Environnement.docx",
+    }
 
 
 def test_results_are_sent_to_prompt_builder():
@@ -486,16 +934,95 @@ def test_unknown_source_id_is_ignored():
     assert pipeline.answer("Question").sources == []
 
 
-def test_invalid_citation_payload_does_not_expose_retrieval_results():
-    pipeline, *_ = create_pipeline(
-        results=[create_result()],
-        llm_answer="Normal answer without JSON",
+def test_non_json_generation_is_returned_without_source_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        "Normal answer without JSON"
     )
 
-    response = pipeline.answer("Question")
 
-    assert response.answer == "Normal answer without JSON"
-    assert response.sources == []
+    assert answer == "Normal answer without JSON"
+    assert used_source_ids is None
+
+
+def test_non_json_generation_with_braces_is_returned_as_user_text():
+    generated_content = "La formule est f(x) = {x + 1}."
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == generated_content
+    assert used_source_ids is None
+
+
+def test_truncated_json_recovers_answer_and_decodes_escapes():
+    generated_content = (
+        '{"answer":"Bonjour\\n\\nVoici \\"les\\" informations\\timportantes 😀. '
+        'Chemin: C:\\\\docs", "used_sources":["SOURCE_1"'
+    )
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == (
+        'Bonjour\n\nVoici "les" informations\timportantes 😀. Chemin: C:\\docs'
+    )
+    assert used_source_ids == ["SOURCE_1"]
+
+
+def test_truncated_json_recovers_and_normalizes_source_ids():
+    generated_content = (
+        'Préambule ```json\n{"answer":"Réponse publique.",'
+        '"used_sources":["SOURCE_1","source_2","SOURCE_1",'
+        '"autre","SOURCE_X","SOURCE_3'
+    )
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == "Réponse publique."
+    assert used_source_ids == ["SOURCE_1", "SOURCE_2", "SOURCE_3"]
+
+
+def test_truncated_sources_ignore_unquoted_protocol_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse publique.","used_sources":[SOURCE_1'
+    )
+
+    assert answer == "Réponse publique."
+    assert used_source_ids is None
+
+
+def test_missing_answer_quote_stops_before_used_sources_field():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse publique, "used_sources":["SOURCE_1"'
+    )
+
+    assert answer == "Réponse publique"
+    assert used_source_ids == ["SOURCE_1"]
+
+
+def test_truncated_answer_without_sources_returns_none_for_source_ids():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"Réponse encore utilisable malgré la coupure'
+    )
+
+    assert answer == "Réponse encore utilisable malgré la coupure"
+    assert used_source_ids is None
+
+
+def test_unrecoverable_internal_protocol_is_never_returned():
+    generated_content = '{"used_sources":["SOURCE_1"'
+
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        generated_content
+    )
+
+    assert answer == RAGPipeline.NO_RESULTS_MESSAGE
+    assert used_source_ids == []
+    assert generated_content not in answer
 
 
 def test_duplicate_source_ids_are_returned_once():
@@ -577,7 +1104,7 @@ def test_retrieval_error_is_translated_to_rag_error():
             embedding,
             top_k,
             max_distance=None,
-            document_id=None,
+            document_ids=None,
             filters=None,
         ):
             raise RuntimeError("Retrieval failure")

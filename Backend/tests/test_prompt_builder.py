@@ -3,6 +3,7 @@ import pytest
 from app.prompting.config import PromptConfig
 from app.prompting.prompt_builder import (
     CITATION_OUTPUT_INSTRUCTION,
+    CONVERSATION_HISTORY_INSTRUCTION,
     PromptBuilder,
 )
 from app.vectorstore.search_result import SearchResult
@@ -195,8 +196,9 @@ def test_context_length_limit():
     assert "A" * 500 not in prompt
     assert len(prompt) <= (
         len(config.system_instruction)
+        + len(CONVERSATION_HISTORY_INSTRUCTION)
         + len(CITATION_OUTPUT_INSTRUCTION)
-        + 250
+        + 300
     )
 
 
@@ -223,3 +225,99 @@ def test_custom_configuration():
 
     assert "Information importante." in prompt
     assert "secret.pdf" not in prompt
+
+
+def test_prompt_renders_history_in_order_with_role_labels():
+    prompt = PromptBuilder().build(
+        question="Et pour lui ?",
+        results=[create_result(text="Contexte factuel distinct.")],
+        conversation_history=[
+            {"role": "user", "content": "Parle-moi du premier candidat."},
+            {"role": "assistant", "content": "Voici le premier candidat."},
+        ],
+    )
+
+    user_line = "Utilisateur: Parle-moi du premier candidat."
+    assistant_line = "Assistant: Voici le premier candidat."
+    assert "HISTORIQUE RÉCENT" in prompt
+    assert prompt.index(user_line) < prompt.index(assistant_line)
+    assert prompt.index(assistant_line) < prompt.index("CONTEXTE DOCUMENTAIRE")
+    assert "Contexte factuel distinct." in prompt
+    assert prompt.index("CONTEXTE DOCUMENTAIRE") < prompt.index("QUESTION")
+    assert "Et pour lui ?" in prompt
+    assert CONVERSATION_HISTORY_INSTRUCTION in prompt
+
+
+def test_prompt_without_history_keeps_document_context_and_question():
+    prompt = PromptBuilder().build(
+        question="Question actuelle",
+        results=[create_result(text="Contexte documentaire")],
+    )
+
+    assert "Aucun historique récent." in prompt
+    assert "Contexte documentaire" in prompt
+    assert "Question actuelle" in prompt
+
+
+def test_history_has_dedicated_length_limit():
+    max_history_length = 50
+    config = PromptConfig(
+        max_history_length=max_history_length,
+        max_context_length=8000,
+    )
+    prompt = PromptBuilder(config).build(
+        question="Question actuelle",
+        results=[create_result(text="DOCUMENT_INTACT")],
+        conversation_history=[
+            {
+                "role": "user",
+                "content": (
+                    "DEBUT_SUPPRIME_" + "X" * 100 + "_FIN_CONSERVEE"
+                ),
+            },
+        ],
+    )
+    history_section = prompt.split("HISTORIQUE RÉCENT\n\n", 1)[1].split(
+        "\n\nCONTEXTE DOCUMENTAIRE",
+        1,
+    )[0]
+
+    assert history_section.startswith("Utilisateur: …")
+    assert history_section.endswith("_FIN_CONSERVEE")
+    assert "DEBUT_SUPPRIME" not in history_section
+    assert len(history_section) <= max_history_length
+    assert "DOCUMENT_INTACT" in prompt
+
+
+def test_history_limit_prioritizes_most_recent_messages():
+    prompt = PromptBuilder(PromptConfig(max_history_length=45)).build(
+        question="Question actuelle",
+        results=[create_result()],
+        conversation_history=[
+            {"role": "user", "content": "A" * 100},
+            {"role": "assistant", "content": "Réponse récente"},
+        ],
+    )
+    history_section = prompt.split("HISTORIQUE RÉCENT\n\n", 1)[1].split(
+        "\n\nCONTEXTE DOCUMENTAIRE",
+        1,
+    )[0]
+
+    assert history_section == "Assistant: Réponse récente"
+
+
+def test_prompt_allows_grounded_comparison_and_forbids_external_facts():
+    prompt = PromptBuilder().build(
+        question="Quel est le point commun entre ces documents ?",
+        results=[create_result()],
+    )
+
+    assert "comparer plusieurs documents" in prompt
+    assert "identifier leurs points communs et leurs différences" in prompt
+    assert "synthétiser plusieurs passages" in prompt
+    assert "relation raisonnable directement soutenue par le contexte" in prompt
+    assert "déduction logique" in prompt
+    assert "aucun fait externe" in prompt
+    assert "n'invente aucune information" in prompt
+    assert "aucune relation qui n'est pas soutenue" in prompt
+    assert "ne permet réellement pas une réponse fondée" in prompt

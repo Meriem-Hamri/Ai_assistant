@@ -1,6 +1,30 @@
 from dataclasses import dataclass
 
 
+def normalize_document_ids(
+    document_ids: list[str] | tuple[str, ...] | None,
+) -> tuple[str, ...]:
+    """Normalise une sélection documentaire en tuple ordonné et unique."""
+
+    if document_ids is None:
+        return ()
+    if not isinstance(document_ids, (list, tuple)):
+        raise TypeError("document_ids doit être une liste, un tuple ou None.")
+
+    normalized_document_ids: list[str] = []
+    for document_id in document_ids:
+        if not isinstance(document_id, str):
+            raise TypeError("Chaque document_id doit être une chaîne.")
+        normalized_document_id = document_id.strip()
+        if (
+            normalized_document_id
+            and normalized_document_id not in normalized_document_ids
+        ):
+            normalized_document_ids.append(normalized_document_id)
+
+    return tuple(normalized_document_ids)
+
+
 @dataclass(frozen=True)
 class DocumentFilters:
     """Filtres métier appliqués avant la recherche vectorielle."""
@@ -52,14 +76,19 @@ class DocumentFilters:
 
     def to_chroma_where(
         self,
-        document_id: str | None = None,
+        document_ids: list[str] | tuple[str, ...] | None = None,
     ) -> dict | None:
         """Construit une clause Chroma : tous les critères sont requis."""
 
         clauses: list[dict] = []
+        normalized_document_ids = normalize_document_ids(document_ids)
 
-        if document_id is not None:
-            clauses.append({"document_id": document_id})
+        if len(normalized_document_ids) == 1:
+            clauses.append({"document_id": normalized_document_ids[0]})
+        elif normalized_document_ids:
+            clauses.append({
+                "document_id": {"$in": list(normalized_document_ids)},
+            })
 
         for key in (
             "category",
