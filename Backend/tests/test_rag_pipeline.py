@@ -1052,6 +1052,16 @@ def test_json_inside_markdown_fence_is_parsed():
     assert len(response.sources) == 1
 
 
+def test_parser_preserves_french_amount_in_arabic_answer():
+    answer, used_source_ids = RAGPipeline._parse_generation(
+        '{"answer":"الراتب الشهري هو 9 500 dirhams.",'
+        '"used_sources":["SOURCE_1"]}'
+    )
+
+    assert answer == "الراتب الشهري هو 9 500 dirhams."
+    assert used_source_ids == ["SOURCE_1"]
+
+
 def test_no_results_returns_message_without_calling_llm():
     (
         pipeline,
@@ -1074,6 +1084,31 @@ def test_no_results_returns_message_without_calling_llm():
     assert response.sources == []
 
     assert llm.received_prompts == []
+
+
+def test_no_results_uses_arabic_fallback_for_arabic_question():
+    pipeline, _, _, _, llm = create_pipeline(results=[])
+
+    response = pipeline.answer("ما مدة العقد؟")
+
+    assert response.answer == "المعلومة غير متوفرة في الوثائق."
+    assert response.sources == []
+    assert llm.received_prompts == []
+
+
+def test_french_model_fallback_is_normalized_to_arabic_for_arabic_question():
+    pipeline, *_ = create_pipeline(
+        results=[create_result()],
+        llm_answer=(
+            '{"answer":"Information non disponible dans les documents.",'
+            '"used_sources":["SOURCE_1"]}'
+        ),
+    )
+
+    response = pipeline.answer("ما مدة العقد؟")
+
+    assert response.answer == "المعلومة غير متوفرة في الوثائق."
+    assert response.sources == []
 
 
 def test_embedding_error_is_translated_to_rag_error():

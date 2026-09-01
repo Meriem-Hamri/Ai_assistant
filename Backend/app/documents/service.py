@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.paths import resolve_document_path
 from app.documents.repository import DocumentRepository
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -52,6 +53,7 @@ class DocumentService:
         department: str | None = None,
         document_type: str | None = None,
         tags: list[str] | None = None,
+        ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE,
     ) -> dict:
         if not file.filename:
             raise ValueError("Le fichier doit avoir un nom.")
@@ -89,6 +91,7 @@ class DocumentService:
             "error_message": None,
             "page_count": None,
             "chunk_count": None,
+            "ocr_language": ocr_language,
             **manual_metadata,
             "tags": manual_metadata["tags"] if tags is not None else None,
         }

@@ -4,6 +4,8 @@ export type DocumentStatus =
   | "ready"
   | "error";
 
+export type OcrLanguage = "fr" | "ar" | "mixed";
+
 export interface Document {
   id: string;
   filename: string;
@@ -20,4 +22,5 @@ export interface Document {
   department: string | null;
   document_type: string | null;
   tags: string[];
+  ocr_language: OcrLanguage;
 }

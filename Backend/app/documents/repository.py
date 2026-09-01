@@ -44,6 +44,7 @@ class DocumentRepository:
             tags=metadata.get("tags"),
             page_count=metadata.get("page_count"),
             chunk_count=metadata.get("chunk_count"),
+            ocr_language=metadata.get("ocr_language", "fr"),
         )
 
         if metadata.get("created_at") is not None:
@@ -130,6 +131,7 @@ class DocumentRepository:
                 department=document.department,
                 document_type=document.document_type,
                 tags=document.tags,
+                ocr_language=document.ocr_language,
             )
 
     def update(self, document_id: str, updates: dict) -> bool:
@@ -203,6 +205,7 @@ class DocumentRepository:
             "tags": document.tags or [],
             "page_count": document.page_count,
             "chunk_count": document.chunk_count,
+            "ocr_language": document.ocr_language,
             "created_at": document.created_at,
             "updated_at": document.updated_at,
         }

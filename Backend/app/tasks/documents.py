@@ -72,6 +72,7 @@ def process_document(document_id: str) -> None:
             filename=document.filename,
             manual_metadata=manual_metadata,
             manual_tags_provided=manual_tags_provided,
+            ocr_language=document.ocr_language,
         )
 
         ready_updated = repository.update(

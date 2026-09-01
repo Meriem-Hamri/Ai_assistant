@@ -69,6 +69,7 @@ def make_document(file_path: Path, **overrides) -> DocumentProcessingInput:
         department="Direction",
         document_type="Contrat",
         tags=None,
+        ocr_language="ar",
     )
     return replace(document, **overrides)
 
@@ -151,6 +152,7 @@ def test_queued_document_transitions_to_ready_and_rebuilds_metadata(
                 "tags": expected_tags,
             },
             "manual_tags_provided": expected_provided,
+            "ocr_language": "ar",
         }
     ]
     assert repository.updates[-1] == {

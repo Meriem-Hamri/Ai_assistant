@@ -3,6 +3,7 @@
 import { ChangeEvent, useRef, useState } from "react";
 
 import { uploadDocument } from "@/lib/api/documents";
+import type { OcrLanguage } from "@/types/document";
 
 interface DocumentUploadProps {
   onUploaded: () => Promise<void>;
@@ -15,6 +16,7 @@ export function DocumentUpload({
 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("fr");
 
   async function handleFileChange(
     event: ChangeEvent<HTMLInputElement>
@@ -29,7 +31,7 @@ export function DocumentUpload({
       setUploading(true);
       setError(null);
 
-      await uploadDocument(file);
+      await uploadDocument(file, ocrLanguage);
       await onUploaded();
     } catch (err) {
       setError(
@@ -48,6 +50,20 @@ export function DocumentUpload({
 
   return (
     <div className="document-upload">
+      <label className="upload-language-label" htmlFor="ocr-language">
+        Langue du document
+      </label>
+      <select
+        id="ocr-language"
+        className="upload-language-select"
+        value={ocrLanguage}
+        disabled={uploading}
+        onChange={(event) => setOcrLanguage(event.target.value as OcrLanguage)}
+      >
+        <option value="fr">Français</option>
+        <option value="ar">Arabe</option>
+        <option value="mixed">Arabe + Français</option>
+      </select>
       <input
         ref={inputRef}
         type="file"

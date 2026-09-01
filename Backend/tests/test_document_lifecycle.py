@@ -142,9 +142,65 @@ async def test_upload_saves_queued_document_and_enqueues_only_its_id(
     assert result["status"] == "queued"
     assert result["page_count"] is None
     assert result["chunk_count"] is None
+    assert result["ocr_language"] == "fr"
     assert response.status == "queued"
     assert response.tags == []
     assert Path(result["path"]).read_bytes() == b"contenu"
+
+
+@pytest.mark.anyio
+async def test_upload_accepts_explicit_ocr_language(monkeypatch, tmp_path: Path):
+    repository = FakeRepository()
+    service, _, _ = make_service(repository)
+    monkeypatch.setattr("app.documents.service.DOCUMENTS_DIR", tmp_path)
+
+    result = await service.upload_document(make_upload(), ocr_language="mixed")
+
+    assert result["ocr_language"] == "mixed"
+    assert repository.document["ocr_language"] == "mixed"
+
+
+def test_upload_route_rejects_invalid_ocr_language_with_422():
+    response = TestClient(app).post(
+        "/documents/",
+        files={"file": ("rapport.pdf", b"contenu", "application/pdf")},
+        data={"ocr_language": "auto"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_upload_route_accepts_ocr_language():
+    class CapturingService:
+        def __init__(self):
+            self.ocr_language = None
+
+        async def upload_document(self, file, **kwargs):
+            self.ocr_language = kwargs["ocr_language"]
+            return {
+                "id": "document-id",
+                "filename": file.filename,
+                "type": "pdf",
+                "size": 7,
+                "created_at": "2026-09-01T12:00:00Z",
+                "status": "queued",
+                "ocr_language": self.ocr_language,
+            }
+
+    service = CapturingService()
+    app.dependency_overrides[get_document_service] = lambda: service
+    try:
+        response = TestClient(app).post(
+            "/documents/",
+            files={"file": ("rapport.pdf", b"contenu", "application/pdf")},
+            data={"ocr_language": "ar"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["ocr_language"] == "ar"
+    assert service.ocr_language == "ar"
 
 
 @pytest.mark.anyio

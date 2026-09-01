@@ -6,6 +6,11 @@ import time
 from app.embeddings.embedding_service import EmbeddingService
 from app.llm.base import BaseLLM
 from app.prompting.prompt_builder import PromptBuilder
+from app.prompting.language import (
+    ARABIC_FALLBACK,
+    FRENCH_FALLBACK,
+    fallback_for_question,
+)
 from app.vectorstore.base import BaseVectorStore
 from app.vectorstore.filters import DocumentFilters, normalize_document_ids
 from app.vectorstore.search_result import SearchResult
@@ -40,9 +45,7 @@ class RAGPipeline:
         RAGResponse
     """
 
-    NO_RESULTS_MESSAGE = (
-        "Information non disponible dans les documents."
-    )
+    NO_RESULTS_MESSAGE = FRENCH_FALLBACK
 
     _TECHNOLOGY_QUERY_TERMS = (
         "framework",
@@ -182,7 +185,7 @@ class RAGPipeline:
             )
         ):
             return RAGResponse(
-                answer=self.NO_RESULTS_MESSAGE,
+                answer=fallback_for_question(question),
                 sources=[],
             )
 
@@ -205,9 +208,13 @@ class RAGPipeline:
         t0 = time.perf_counter()
         generated_content = self._generate_answer(prompt)
         print(f"[TIME] LLM : {time.perf_counter() - t0:.2f}s")
-        answer, used_source_ids = self._parse_generation(generated_content)
+        answer, used_source_ids = self._parse_generation(
+            generated_content,
+            fallback_message=fallback_for_question(question),
+        )
 
         if self._is_no_results_answer(answer):
+            answer = fallback_for_question(question)
             sources = []
         elif used_source_ids is None:
             logger.warning(
@@ -609,6 +616,7 @@ class RAGPipeline:
     @staticmethod
     def _parse_generation(
         generated_content: str,
+        fallback_message: str = NO_RESULTS_MESSAGE,
     ) -> tuple[str, list[str] | None]:
         """Extract the public answer and citation IDs from the LLM JSON."""
 
@@ -648,7 +656,7 @@ class RAGPipeline:
             if plain_answer and contains_internal_protocol is None:
                 return plain_answer, None
 
-            return RAGPipeline.NO_RESULTS_MESSAGE, []
+            return fallback_message, []
 
         used_sources = RAGPipeline._recover_truncated_used_sources(
             generated_content
@@ -806,7 +814,10 @@ class RAGPipeline:
                 value.casefold().strip().rstrip(".!? ").split()
             )
 
-        return normalize(answer) == normalize(cls.NO_RESULTS_MESSAGE)
+        return normalize(answer) in {
+            normalize(cls.NO_RESULTS_MESSAGE),
+            normalize(ARABIC_FALLBACK),
+        }
 
     @classmethod
     def _build_used_sources(

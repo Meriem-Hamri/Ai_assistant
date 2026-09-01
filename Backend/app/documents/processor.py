@@ -5,18 +5,22 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.cleaning.cleaner import clean_document
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
 
 if TYPE_CHECKING:
     from app.documents.indexer import DocumentIndexer
     from app.metadata.extractor import MetadataExtractor
 
 
-def extract_document(file_path: str):
+def extract_document(
+    file_path: str,
+    ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE,
+):
     """Charge le pipeline d'extraction uniquement lors du traitement effectif."""
 
     from app.extraction.extraction_service import extract_document as extract
 
-    return extract(file_path)
+    return extract(file_path, ocr_language)
 
 
 @dataclass(frozen=True)
@@ -53,8 +57,9 @@ class DocumentProcessor:
         filename: str,
         manual_metadata: dict,
         manual_tags_provided: bool,
+        ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE,
     ) -> DocumentProcessingResult:
-        document = extract_document(str(file_path))
+        document = extract_document(str(file_path), ocr_language)
 
         for page in document.pages:
             page.text = clean_document(page.text)

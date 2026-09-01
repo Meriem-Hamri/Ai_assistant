@@ -1,3 +1,5 @@
+import re
+
 from app.prompting.config import PromptConfig
 from app.prompting.templates import (
     ANSWER_HEADER,
@@ -7,6 +9,7 @@ from app.prompting.templates import (
     QUESTION_HEADER,
 )
 from app.prompting.utils import build_context
+from app.prompting.language import response_language_instruction
 from app.vectorstore.search_result import SearchResult
 
 
@@ -83,6 +86,7 @@ class PromptBuilder:
         return PROMPT_TEMPLATE.format(
             system_instruction=(
                 f"{self._config.system_instruction} "
+                f"{response_language_instruction(question)} "
                 f"{CONVERSATION_HISTORY_INSTRUCTION} "
                 f"{CITATION_OUTPUT_INSTRUCTION}"
             ),
@@ -92,7 +96,37 @@ class PromptBuilder:
             context=context,
             question_header=QUESTION_HEADER,
             question=question.strip(),
+            numeric_fidelity_instruction=self._build_numeric_fidelity_instruction(
+                results
+            ),
             answer_header=ANSWER_HEADER,
+        )
+
+    def _build_numeric_fidelity_instruction(
+        self,
+        results: list[SearchResult],
+    ) -> str:
+        """Répète près de la réponse les valeurs exactes visibles du contexte."""
+
+        values: list[str] = []
+        for result in results[:self._config.max_results]:
+            for match in re.finditer(
+                r"(?<!\w)(?:\d[\d\s.,]*\d|\d)(?!\w)",
+                result.text,
+            ):
+                value = match.group().strip()
+                if value and value not in values:
+                    values.append(value)
+
+        if not values:
+            return ""
+
+        rendered_values = " ; ".join(values)
+        return (
+            "FIDÉLITÉ NUMÉRIQUE OBLIGATOIRE : si tu utilises une de ces "
+            "valeurs, recopie-la caractère par caractère, sans supprimer ni "
+            "modifier un chiffre, un séparateur ou une unité : "
+            f"{rendered_values}."
         )
 
     def _build_history(

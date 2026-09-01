@@ -83,3 +83,10 @@ class DocumentModel(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    ocr_language: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="fr",
+        server_default="fr",
+    )

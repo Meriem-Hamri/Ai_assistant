@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
+
 
 @dataclass(frozen=True)
 class DocumentProcessingInput:
@@ -16,3 +18,4 @@ class DocumentProcessingInput:
     department: str | None
     document_type: str | None
     tags: list[str] | None
+    ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE

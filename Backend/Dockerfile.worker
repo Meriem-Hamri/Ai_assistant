@@ -10,7 +10,13 @@ RUN apt-get update \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
+        tesseract-ocr \
+        tesseract-ocr-ara \
+        tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
+
+RUN tesseract --list-langs | grep -qx ara \
+    && tesseract --list-langs | grep -qx fra
 
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir \

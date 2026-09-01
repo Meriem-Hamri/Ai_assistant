@@ -1,13 +1,17 @@
 import { apiFetch, getApiUrl } from "./client";
-import type { Document } from "@/types/document";
+import type { Document, OcrLanguage } from "@/types/document";
 
 export async function getDocuments(): Promise<Document[]> {
   return apiFetch<Document[]>("/documents/");
 }
 
-export async function uploadDocument(file: File): Promise<Document> {
+export async function uploadDocument(
+  file: File,
+  ocrLanguage: OcrLanguage = "fr"
+): Promise<Document> {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("ocr_language", ocrLanguage);
 
   return apiFetch<Document>("/documents/", {
     method: "POST",

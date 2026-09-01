@@ -30,6 +30,7 @@ def build_metadata(**overrides) -> dict:
         "department": "Ressources humaines",
         "document_type": "Contrat",
         "tags": ["contrat", "emploi"],
+        "ocr_language": "ar",
     }
     metadata.update(overrides)
     return metadata
@@ -73,6 +74,7 @@ def test_save_persists_document_and_business_metadata(tmp_path):
             assert document.department == metadata["department"]
             assert document.document_type == metadata["document_type"]
             assert document.tags == metadata["tags"]
+            assert document.ocr_language == metadata["ocr_language"]
     finally:
         cleanup_documents(metadata["id"])
 
@@ -92,7 +94,7 @@ def test_get_by_id_returns_contract_and_handles_unknown_ids():
             "id", "filename", "type", "size", "path", "status",
             "error_message", "title", "category", "year", "person",
             "department", "document_type", "tags", "page_count",
-            "chunk_count", "created_at", "updated_at",
+            "chunk_count", "ocr_language", "created_at", "updated_at",
         }
         assert result["filename"] == metadata["filename"]
         assert result["type"] == metadata["type"]
@@ -101,6 +103,7 @@ def test_get_by_id_returns_contract_and_handles_unknown_ids():
         assert result["status"] == metadata["status"]
         assert result["page_count"] == metadata["page_count"]
         assert result["chunk_count"] == metadata["chunk_count"]
+        assert result["ocr_language"] == metadata["ocr_language"]
         assert result["created_at"] == metadata["created_at"]
         assert result["updated_at"] is not None
         response = DocumentResponse.model_validate(result)
@@ -205,6 +208,7 @@ def test_get_for_processing_preserves_tags_intent(
         assert processing_input.department == metadata["department"]
         assert processing_input.document_type == metadata["document_type"]
         assert processing_input.tags == expected_processing_tags
+        assert processing_input.ocr_language == metadata["ocr_language"]
     finally:
         cleanup_documents(metadata["id"])
 
