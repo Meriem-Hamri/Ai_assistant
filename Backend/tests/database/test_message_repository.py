@@ -53,8 +53,10 @@ def test_save_user_and_assistant_with_sources_then_get_by_id():
 
         assert saved_user["role"] == "user"
         assert saved_user["sources"] is None
+        assert saved_user["document_ids"] == []
         assert saved_assistant["role"] == "assistant"
         assert saved_assistant["sources"] == sources
+        assert saved_assistant["document_ids"] == []
         assert saved_assistant["created_at"] is not None
         assert messages.get_by_id(assistant["id"]) == saved_assistant
         assert messages.get_by_id("invalide") is None

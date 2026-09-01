@@ -1,11 +1,12 @@
 import uuid
 
-from sqlalchemy import inspect, select
+from sqlalchemy import UniqueConstraint, inspect, select
 
 from app.database.models import (
     ConversationModel,
     DocumentModel,
     MessageModel,
+    MessageDocumentModel,
 )
 from app.database.session import SessionLocal
 
@@ -42,6 +43,46 @@ def test_conversation_and_message_mappings():
     assert conversation_relationship.passive_deletes is True
     assert conversation_relationship.cascade.delete_orphan is True
     assert message_relationship.back_populates == "messages"
+
+
+def test_message_document_mapping():
+    table = MessageDocumentModel.__table__
+
+    assert table.name == "message_documents"
+    assert [column.name for column in table.primary_key.columns] == [
+        "message_id",
+        "document_id",
+    ]
+    assert table.c.position.nullable is False
+
+    message_fk = next(iter(table.c.message_id.foreign_keys))
+    document_fk = next(iter(table.c.document_id.foreign_keys))
+    assert message_fk.target_fullname == "messages.id"
+    assert message_fk.ondelete == "CASCADE"
+    assert document_fk.target_fullname == "documents.id"
+    assert document_fk.ondelete == "CASCADE"
+
+    unique_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+    assert ("message_id", "position") in unique_columns
+    assert any(
+        index.name == "ix_message_documents_document_id"
+        and tuple(column.name for column in index.columns) == ("document_id",)
+        for index in table.indexes
+    )
+
+    message_relationship = inspect(
+        MessageModel
+    ).relationships.document_links
+    link_relationship = inspect(MessageDocumentModel).relationships.message
+    assert message_relationship.back_populates == "message"
+    assert message_relationship.passive_deletes is True
+    assert message_relationship.cascade.delete_orphan is True
+    assert message_relationship.order_by is not False
+    assert link_relationship.back_populates == "document_links"
 
 
 def test_conversation_message_sources_and_delete_cascade():

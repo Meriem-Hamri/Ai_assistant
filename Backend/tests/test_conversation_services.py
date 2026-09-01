@@ -105,6 +105,60 @@ def test_message_service_accepts_roles_and_strips_content(role):
     assert result["role"] == role
     assert result["content"] == "Contenu"
     assert result["sources"] == sources
+    assert result["document_ids"] == []
+
+
+@pytest.mark.parametrize("document_ids", [None, []])
+def test_message_service_normalizes_missing_document_ids(document_ids):
+    repository = RecordingRepository()
+    service = MessageService(repository)
+
+    result = service.create_message(
+        "conversation",
+        "user",
+        "Contenu",
+        document_ids=document_ids,
+    )
+
+    assert result["document_ids"] == []
+
+
+def test_message_service_normalizes_and_deduplicates_document_ids():
+    service = MessageService(RecordingRepository())
+
+    result = service.create_message(
+        "conversation",
+        "user",
+        "Contenu",
+        document_ids=[" A ", "", "A", " B "],
+    )
+
+    assert result["document_ids"] == ["A", "B"]
+
+
+def test_message_service_accepts_document_id_tuple():
+    service = MessageService(RecordingRepository())
+
+    result = service.create_message(
+        "conversation",
+        "assistant",
+        "Contenu",
+        document_ids=("A", "B"),
+    )
+
+    assert result["document_ids"] == ["A", "B"]
+
+
+def test_message_service_rejects_non_string_document_id():
+    service = MessageService(RecordingRepository())
+
+    with pytest.raises(TypeError):
+        service.create_message(
+            "conversation",
+            "user",
+            "Contenu",
+            document_ids=["A", 1],
+        )
 
 
 def test_message_service_rejects_invalid_role_and_blank_content():

@@ -1,8 +1,10 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.database.models.message import MessageModel
+from app.database.models.message_document import MessageDocumentModel
 from app.database.session import SessionLocal
 
 
@@ -17,6 +19,15 @@ class MessageRepository:
             role=message["role"],
             content=message["content"],
             sources=message.get("sources"),
+            document_links=[
+                MessageDocumentModel(
+                    document_id=UUID(document_id),
+                    position=position,
+                )
+                for position, document_id in enumerate(
+                    message.get("document_ids") or []
+                )
+            ],
         )
 
         if message.get("created_at") is not None:
@@ -38,7 +49,11 @@ class MessageRepository:
             return None
 
         with SessionLocal() as session:
-            message = session.get(MessageModel, parsed_id)
+            message = session.scalar(
+                select(MessageModel)
+                .options(selectinload(MessageModel.document_links))
+                .where(MessageModel.id == parsed_id)
+            )
             if message is None:
                 return None
             return self._to_dict(message)
@@ -52,6 +67,7 @@ class MessageRepository:
         with SessionLocal() as session:
             messages = session.scalars(
                 select(MessageModel)
+                .options(selectinload(MessageModel.document_links))
                 .where(MessageModel.conversation_id == parsed_id)
                 .order_by(
                     MessageModel.created_at.asc(),
@@ -75,5 +91,8 @@ class MessageRepository:
             "role": message.role,
             "content": message.content,
             "sources": message.sources,
+            "document_ids": [
+                str(link.document_id) for link in message.document_links
+            ],
             "created_at": message.created_at,
         }

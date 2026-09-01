@@ -12,6 +12,7 @@ from app.database.base import Base
 
 if TYPE_CHECKING:
     from app.database.models.conversation import ConversationModel
+    from app.database.models.message_document import MessageDocumentModel
 
 
 class MessageModel(Base):
@@ -53,4 +54,11 @@ class MessageModel(Base):
 
     conversation: Mapped[ConversationModel] = relationship(
         back_populates="messages",
+    )
+
+    document_links: Mapped[list[MessageDocumentModel]] = relationship(
+        back_populates="message",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="MessageDocumentModel.position",
     )

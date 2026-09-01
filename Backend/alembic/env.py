@@ -10,6 +10,7 @@ from app.database.models import (
     ConversationModel,
     DocumentModel,
     MessageModel,
+    MessageDocumentModel,
 )
 
 

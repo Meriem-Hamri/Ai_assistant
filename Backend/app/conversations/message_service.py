@@ -29,6 +29,7 @@ class MessageService:
         role: str,
         content: str,
         sources: list[dict] | None = None,
+        document_ids: list[str] | tuple[str, ...] | None = None,
     ) -> dict:
         if role not in self._ALLOWED_ROLES:
             raise InvalidMessageRoleError(
@@ -48,8 +49,26 @@ class MessageService:
                 "role": role,
                 "content": normalized_content,
                 "sources": sources,
+                "document_ids": self._normalize_document_ids(document_ids),
             }
         )
+
+    @staticmethod
+    def _normalize_document_ids(
+        document_ids: list[str] | tuple[str, ...] | None,
+    ) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+
+        for document_id in document_ids or []:
+            if not isinstance(document_id, str):
+                raise TypeError("Chaque document_id doit être une chaîne.")
+            value = document_id.strip()
+            if value and value not in seen:
+                normalized.append(value)
+                seen.add(value)
+
+        return normalized
 
     def get_messages(self, conversation_id: str) -> list[dict]:
         return self._repository.get_by_conversation(conversation_id)
