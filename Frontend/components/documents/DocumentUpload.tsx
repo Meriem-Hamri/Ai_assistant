@@ -66,7 +66,7 @@ export function DocumentUpload({
       >
         {uploading
           ? "Import en cours..."
-          : "+ Importer un document"}
+          : "+ Importer"}
       </button>
 
       {error && (

@@ -9,6 +9,8 @@ interface ConversationListProps {
   disabled: boolean;
   onNewConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
+  isOpen: boolean;
+  onToggleOpen: () => void;
 }
 
 export function ConversationList({
@@ -19,6 +21,8 @@ export function ConversationList({
   disabled,
   onNewConversation,
   onSelectConversation,
+  isOpen,
+  onToggleOpen,
 }: ConversationListProps) {
   return (
     <section
@@ -26,38 +30,50 @@ export function ConversationList({
       aria-labelledby="conversations-heading"
     >
       <h2 className="sidebar-section-title" id="conversations-heading">
-        Conversations
+        <button
+          className="sidebar-section-toggle"
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls="conversations-panel"
+          aria-label={`${isOpen ? "Replier" : "Ouvrir"} la section Conversations`}
+          onClick={onToggleOpen}
+        >
+          <span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>
+          <span>Conversations</span>
+        </button>
       </h2>
-      <button
-        className="new-conversation-button"
-        type="button"
-        disabled={disabled}
-        onClick={onNewConversation}
-      >
-        Nouveau chat
-      </button>
+      <div className="sidebar-section-content" id="conversations-panel" hidden={!isOpen}>
+        <button
+          className="new-conversation-button"
+          type="button"
+          disabled={disabled}
+          onClick={onNewConversation}
+        >
+          Nouveau chat
+        </button>
 
-      {loading ? (
-        <p className="sidebar-status">Chargement des conversations...</p>
-      ) : error ? (
-        <p className="sidebar-status sidebar-status-error" role="status">
-          {error}
-        </p>
-      ) : conversations.length === 0 ? (
-        <p className="sidebar-status">Aucune conversation</p>
-      ) : (
-        <div className="conversation-list">
-          {conversations.map((conversation) => (
-            <ConversationItem
-              key={conversation.id}
-              conversation={conversation}
-              selected={conversation.id === selectedConversationId}
-              disabled={disabled}
-              onSelect={onSelectConversation}
-            />
-          ))}
-        </div>
-      )}
+        {loading ? (
+          <p className="sidebar-status">Chargement des conversations...</p>
+        ) : error ? (
+          <p className="sidebar-status sidebar-status-error" role="status">
+            {error}
+          </p>
+        ) : conversations.length === 0 ? (
+          <p className="sidebar-status">Aucune conversation</p>
+        ) : (
+          <div className="conversation-list">
+            {conversations.map((conversation) => (
+              <ConversationItem
+                key={conversation.id}
+                conversation={conversation}
+                selected={conversation.id === selectedConversationId}
+                disabled={disabled}
+                onSelect={onSelectConversation}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

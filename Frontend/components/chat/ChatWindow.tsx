@@ -7,9 +7,9 @@ import { useChat } from "@/hooks/useChat";
 import type { Conversation } from "@/types/conversation";
 import type { Document } from "@/types/document";
 
-interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentIds: string[]; selectedDocuments: Document[]; availableDocuments: Document[]; onRemoveDocument: (documentId: string) => void; onConversationCreated: (conversation: Conversation) => void; onDocumentContextRestored: (documentIds: string[]) => void; onGeneratingChange: (isGenerating: boolean) => void; }
+interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentIds: string[]; selectedDocuments: Document[]; availableDocuments: Document[]; onRemoveDocument: (documentId: string) => void; onConversationCreated: (conversation: Conversation) => void; onDocumentContextRestored: (documentIds: string[]) => void; onGeneratingChange: (isGenerating: boolean) => void; sidebarOpen: boolean; onOpenSidebar: () => void; }
 
-export function ChatWindow({ selectedConversationId, selectedDocumentIds, selectedDocuments, availableDocuments, onRemoveDocument, onConversationCreated, onDocumentContextRestored, onGeneratingChange }: ChatWindowProps) {
+export function ChatWindow({ selectedConversationId, selectedDocumentIds, selectedDocuments, availableDocuments, onRemoveDocument, onConversationCreated, onDocumentContextRestored, onGeneratingChange, sidebarOpen, onOpenSidebar }: ChatWindowProps) {
   const { messages, isLoadingHistory, isGenerating, error, sendMessage } = useChat(selectedConversationId, onConversationCreated);
   useEffect(() => {
     if (
@@ -48,7 +48,25 @@ export function ChatWindow({ selectedConversationId, selectedDocumentIds, select
     }
   };
   return <section className="chat-window" aria-label="Chat documentaire">
-    <header className="chat-header"><div className="chat-context" title={contextName}><span className="scope-indicator" aria-hidden="true" /><span>Contexte : {contextName}</span></div></header>
+    <header className="chat-header">
+      {!sidebarOpen && (
+        <button
+          className="open-sidebar-button"
+          type="button"
+          title="Ouvrir la barre latérale"
+          aria-label="Ouvrir la barre latérale"
+          aria-controls="app-sidebar"
+          aria-expanded="false"
+          onClick={onOpenSidebar}
+        >
+          <svg className="sidebar-toggle-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="2.75" y="3.25" width="14.5" height="13.5" rx="2" />
+            <path d="M7.25 3.75v12.5" />
+          </svg>
+        </button>
+      )}
+      <div className="chat-context" title={contextName}><span className="scope-indicator" aria-hidden="true" /><span>Contexte : {contextName}</span></div>
+    </header>
     {isLoadingHistory ? (
       <div className="chat-history-loading" role="status">Chargement de la conversation...</div>
     ) : (
