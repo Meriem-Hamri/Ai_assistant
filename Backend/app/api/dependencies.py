@@ -1,6 +1,7 @@
 from app.container import (
     create_document_processor,
     get_conversation_repository,
+    get_conversation_service,
     get_document_repository,
     get_document_processing_dispatcher,
     get_embedding_service,
@@ -17,6 +18,7 @@ from app.container import (
 __all__ = [
     "create_document_processor",
     "get_conversation_repository",
+    "get_conversation_service",
     "get_document_repository",
     "get_document_processing_dispatcher",
     "get_embedding_service",

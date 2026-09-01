@@ -1,35 +1,17 @@
-from fastapi import APIRouter, Depends,HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import (
-    get_conversation_repository,
-)
+from app.api.dependencies import get_conversation_service
 from app.api.schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
 )
-from app.conversations.repository import (
-    ConversationRepository,
-)
-from app.conversations.service import (
-    ConversationService,
-)
+from app.conversations.service import ConversationService
 
 
 router = APIRouter(
     prefix="/conversations",
     tags=["Conversations"],
 )
-
-
-def get_conversation_service(
-    repository: ConversationRepository = Depends(
-        get_conversation_repository
-    ),
-) -> ConversationService:
-
-    return ConversationService(
-        repository=repository
-    )
 
 
 @router.post(
@@ -57,6 +39,7 @@ def list_conversations(
     ),
 ):
     return service.get_conversations()
+
 
 @router.get(
     "/{conversation_id}",

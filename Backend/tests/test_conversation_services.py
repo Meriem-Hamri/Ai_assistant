@@ -3,7 +3,11 @@ from uuid import UUID
 
 import pytest
 
-from app.conversations.message_service import MessageService
+from app.conversations.message_service import (
+    EmptyMessageContentError,
+    InvalidMessageRoleError,
+    MessageService,
+)
 from app.conversations.service import ConversationService
 
 
@@ -77,9 +81,9 @@ def test_message_service_accepts_roles_and_strips_content(role):
 def test_message_service_rejects_invalid_role_and_blank_content():
     service = MessageService(RecordingRepository())
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidMessageRoleError):
         service.create_message("conversation", "system", "Contenu")
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyMessageContentError):
         service.create_message("conversation", "user", "   ")
 
 

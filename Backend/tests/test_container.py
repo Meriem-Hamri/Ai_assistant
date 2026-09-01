@@ -12,6 +12,7 @@ CACHED_GETTERS = (
     container.get_document_repository,
     container.get_document_processing_dispatcher,
     container.get_conversation_repository,
+    container.get_conversation_service,
     container.get_message_repository,
     container.get_message_service,
     container.get_prompt_builder,
@@ -117,6 +118,31 @@ def test_message_service_is_cached_and_reuses_repository(monkeypatch):
     service = container.get_message_service()
 
     assert service is container.get_message_service()
+    assert captured == {"repository": repository}
+
+
+def test_conversation_service_is_cached_and_reuses_repository(monkeypatch):
+    repository = object()
+    captured = {}
+
+    class FakeConversationService:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        container,
+        "ConversationService",
+        FakeConversationService,
+    )
+    monkeypatch.setattr(
+        container,
+        "get_conversation_repository",
+        lambda: repository,
+    )
+
+    service = container.get_conversation_service()
+
+    assert service is container.get_conversation_service()
     assert captured == {"repository": repository}
 
 

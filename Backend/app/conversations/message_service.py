@@ -3,6 +3,18 @@ from uuid import uuid4
 from app.conversations.message_repository import MessageRepository
 
 
+class MessageValidationError(ValueError):
+    """Le message ne respecte pas les règles métier."""
+
+
+class InvalidMessageRoleError(MessageValidationError):
+    """Le rôle du message n'est pas autorisé."""
+
+
+class EmptyMessageContentError(MessageValidationError):
+    """Le contenu du message est vide après normalisation."""
+
+
 class MessageService:
     """Service métier des messages de conversation."""
 
@@ -19,11 +31,15 @@ class MessageService:
         sources: list[dict] | None = None,
     ) -> dict:
         if role not in self._ALLOWED_ROLES:
-            raise ValueError("Le rôle doit être 'user' ou 'assistant'.")
+            raise InvalidMessageRoleError(
+                "Le rôle doit être 'user' ou 'assistant'."
+            )
 
         normalized_content = content.strip()
         if not normalized_content:
-            raise ValueError("Le contenu du message ne peut pas être vide.")
+            raise EmptyMessageContentError(
+                "Le contenu du message ne peut pas être vide."
+            )
 
         return self._repository.save(
             {
