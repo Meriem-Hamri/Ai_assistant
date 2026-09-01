@@ -12,6 +12,8 @@ CACHED_GETTERS = (
     container.get_document_repository,
     container.get_document_processing_dispatcher,
     container.get_conversation_repository,
+    container.get_message_repository,
+    container.get_message_service,
     container.get_prompt_builder,
     container.get_llm,
     container.get_metadata_extractor,
@@ -39,6 +41,7 @@ def clear_container_caches():
             "CeleryDocumentProcessingDispatcher",
         ),
         ("get_conversation_repository", "ConversationRepository"),
+        ("get_message_repository", "MessageRepository"),
         ("get_prompt_builder", "PromptBuilder"),
         ("get_llm", "QwenClient"),
         ("get_metadata_extractor", "MetadataExtractor"),
@@ -98,6 +101,23 @@ def test_rag_pipeline_is_cached_and_reuses_shared_dependencies(monkeypatch):
 
     assert pipeline is container.get_rag_pipeline()
     assert {name: captured[name] for name in dependencies} == dependencies
+
+
+def test_message_service_is_cached_and_reuses_repository(monkeypatch):
+    repository = object()
+    captured = {}
+
+    class FakeMessageService:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(container, "MessageService", FakeMessageService)
+    monkeypatch.setattr(container, "get_message_repository", lambda: repository)
+
+    service = container.get_message_service()
+
+    assert service is container.get_message_service()
+    assert captured == {"repository": repository}
 
 
 def test_document_processor_factory_is_not_cached_and_reuses_dependencies(

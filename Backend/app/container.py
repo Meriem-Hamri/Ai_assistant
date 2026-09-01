@@ -2,6 +2,8 @@ import os
 from functools import lru_cache
 
 from app.conversations.repository import ConversationRepository
+from app.conversations.message_repository import MessageRepository
+from app.conversations.message_service import MessageService
 from app.documents.celery_dispatcher import CeleryDocumentProcessingDispatcher
 from app.documents.indexer import DocumentIndexer
 from app.documents.processor import DocumentProcessor
@@ -45,6 +47,16 @@ def get_document_processing_dispatcher() -> CeleryDocumentProcessingDispatcher:
 @lru_cache(maxsize=1)
 def get_conversation_repository() -> ConversationRepository:
     return ConversationRepository()
+
+
+@lru_cache(maxsize=1)
+def get_message_repository() -> MessageRepository:
+    return MessageRepository()
+
+
+@lru_cache(maxsize=1)
+def get_message_service() -> MessageService:
+    return MessageService(repository=get_message_repository())
 
 
 @lru_cache(maxsize=1)
