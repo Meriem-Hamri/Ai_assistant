@@ -1,4 +1,4 @@
-from app.documents.service import DocumentService
+from app.documents.processor import DocumentProcessor
 from app.metadata.config import MetadataExtractorConfig
 from app.metadata.extractor import MetadataExtractor
 
@@ -68,7 +68,7 @@ def test_falls_back_to_reliable_title_and_year_when_model_fails():
 
 
 def test_manual_metadata_overrides_automatic_metadata():
-    merged = DocumentService._merge_business_metadata(
+    merged = DocumentProcessor._merge_business_metadata(
         automatic_metadata={
             "title": "Contrat de travail",
             "category": "RH",
@@ -91,7 +91,7 @@ def test_manual_metadata_overrides_automatic_metadata():
     )
 
     assert merged["title"] == "Contrat de travail"
-    assert merged["category"] == "finance"
+    assert merged["category"] == "Finance"
     assert merged["year"] == 2016
     assert merged["tags"] == ["paie"]
 

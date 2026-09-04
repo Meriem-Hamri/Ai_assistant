@@ -5,6 +5,7 @@ interface ConversationItemProps {
   selected: boolean;
   disabled: boolean;
   onSelect: (conversationId: string) => void;
+  onRequestDelete: () => void;
 }
 
 export function ConversationItem({
@@ -12,17 +13,12 @@ export function ConversationItem({
   selected,
   disabled,
   onSelect,
+  onRequestDelete,
 }: ConversationItemProps) {
   return (
-    <button
-      className={`conversation-item${selected ? " selected" : ""}`}
-      type="button"
-      title={conversation.title}
-      aria-pressed={selected}
-      disabled={disabled}
-      onClick={() => onSelect(conversation.id)}
-    >
-      {conversation.title}
-    </button>
+    <div className={`conversation-entry${selected ? " selected" : ""}`}>
+      <button className="conversation-item" type="button" title={conversation.title} aria-pressed={selected} disabled={disabled} onClick={() => onSelect(conversation.id)}>{conversation.title}</button>
+      <button className="conversation-delete" type="button" aria-label={`Supprimer ${conversation.title}`} title="Supprimer la conversation" disabled={disabled} onClick={onRequestDelete}>×</button>
+    </div>
   );
 }

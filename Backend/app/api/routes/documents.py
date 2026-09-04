@@ -12,7 +12,7 @@ from app.api.dependencies import (
     get_document_repository,
     get_vector_store,
 )
-from app.api.schemas.document import DocumentResponse
+from app.api.schemas.document import DocumentMetadataOptionsResponse, DocumentResponse
 from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
 from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.repository import DocumentRepository
@@ -95,6 +95,16 @@ def get_documents(
     ),
 ):
     return service.get_documents()
+
+
+@router.get(
+    "/metadata-options",
+    response_model=DocumentMetadataOptionsResponse,
+)
+def get_document_metadata_options(
+    service: DocumentService = Depends(get_document_service),
+):
+    return service.get_metadata_options()
 
 @router.get(
     "/{document_id}",

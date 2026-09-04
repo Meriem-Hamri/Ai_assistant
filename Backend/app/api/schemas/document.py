@@ -23,3 +23,9 @@ class DocumentResponse(BaseModel):
     document_type: str | None = None
     tags: list[str] = Field(default_factory=list)
     ocr_language: OcrLanguage = "fr"
+
+
+class DocumentMetadataOptionsResponse(BaseModel):
+    category: list[str]
+    department: list[str]
+    document_type: list[str]

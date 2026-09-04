@@ -2,6 +2,7 @@ import type { Document } from "@/types/document";
 
 interface PromptAttachmentsProps {
   documents: Document[];
+  selectionLabel: string | null;
   disabled: boolean;
   onRemoveDocument: (documentId: string) => void;
   onClearSelection?: () => void;
@@ -9,15 +10,28 @@ interface PromptAttachmentsProps {
 
 export function PromptAttachments({
   documents,
+  selectionLabel,
   disabled,
   onRemoveDocument,
 }: PromptAttachmentsProps) {
   if (documents.length === 0) {
+    return null;
+  }
+
+  if (selectionLabel || documents.length > 3) {
+    const label = selectionLabel ?? `${documents.length} documents sélectionnés`;
     return (
-      <div className="prompt-attachments prompt-attachments-all">
-        <span className="scope-indicator" aria-hidden="true" />
-        <span>Tous les documents</span>
-      </div>
+      <details className="prompt-selection-group">
+        <summary>
+          <span className="prompt-selection-icon" aria-hidden="true">▤</span>
+          <span><strong>Documents sélectionnés</strong><small>{label}</small></span>
+          <span className="prompt-selection-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div className="prompt-selection-details">
+          <strong>Documents concernés</strong>
+          <ul>{documents.map((document) => <li key={document.id}>✓ {document.filename}</li>)}</ul>
+        </div>
+      </details>
     );
   }
 

@@ -152,6 +152,11 @@ def test_queued_document_transitions_to_ready_and_rebuilds_metadata(
                 "tags": expected_tags,
             },
             "manual_tags_provided": expected_provided,
+            "reference_values": {
+                "category": ["Finance", "Ressources humaines", "Informatique", "Juridique", "Commercial", "Marketing", "Formation", "Administration", "Opérations"],
+                "department": ["Direction générale", "Finance", "Ressources humaines", "Informatique", "Commercial", "Marketing", "Juridique", "Opérations"],
+                "document_type": ["Rapport", "Contrat", "Procédure", "Guide", "Facture", "Présentation", "CV", "Note", "Politique"],
+            },
             "ocr_language": "ar",
         }
     ]

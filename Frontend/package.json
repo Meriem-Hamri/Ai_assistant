@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "dompurify": "^3.4.14",
+    "mammoth": "^1.12.2",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"

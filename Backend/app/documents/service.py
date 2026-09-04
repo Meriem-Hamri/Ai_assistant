@@ -10,6 +10,12 @@ from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.paths import resolve_document_path
 from app.documents.repository import DocumentRepository
 from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
+from app.metadata.catalog import (
+    canonicalize_exact,
+    clean_display_value,
+    merge_reference_values,
+    normalized_name,
+)
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -58,6 +64,7 @@ class DocumentService:
         if not file.filename:
             raise ValueError("Le fichier doit avoir un nom.")
 
+        reference_values = self.get_metadata_options()
         manual_metadata = self._build_business_metadata(
             title=title,
             category=category,
@@ -66,6 +73,7 @@ class DocumentService:
             department=department,
             document_type=document_type,
             tags=tags,
+            reference_values=reference_values,
         )
 
         document_id = str(uuid4())
@@ -149,6 +157,7 @@ class DocumentService:
         department: str | None,
         document_type: str | None,
         tags: list[str] | None,
+        reference_values: dict[str, list[str]] | None = None,
     ) -> dict:
         """Normalise les métadonnées métier renseignées à l'import."""
 
@@ -157,25 +166,27 @@ class DocumentService:
                 "L'année doit être comprise entre 1000 et 9999."
             )
 
-        def clean(value: str | None) -> str | None:
-            if value is None:
-                return None
-            normalized = value.strip()
-            return normalized or None
-
         normalized_tags: list[str] = []
+        seen_tags: set[str] = set()
         for tag in tags or []:
-            normalized_tag = clean(tag)
-            if normalized_tag and normalized_tag not in normalized_tags:
+            normalized_tag = clean_display_value(tag)
+            tag_key = normalized_name(normalized_tag)
+            if normalized_tag and tag_key not in seen_tags:
+                seen_tags.add(tag_key)
                 normalized_tags.append(normalized_tag)
 
+        references = reference_values or {
+            field: merge_reference_values(field, [])
+            for field in ("category", "department", "document_type")
+        }
+
         return {
-            "title": clean(title),
-            "category": clean(category),
+            "title": clean_display_value(title),
+            "category": canonicalize_exact(category, references["category"]),
             "year": year,
-            "person": clean(person),
-            "department": clean(department),
-            "document_type": clean(document_type),
+            "person": clean_display_value(person),
+            "department": canonicalize_exact(department, references["department"]),
+            "document_type": canonicalize_exact(document_type, references["document_type"]),
             "tags": normalized_tags,
         }
 
@@ -183,6 +194,15 @@ class DocumentService:
         """Retourne la liste des documents enregistrés."""
 
         return self._repository.get_all()
+
+    def get_metadata_options(self) -> dict[str, list[str]]:
+        """Combine les valeurs PostgreSQL existantes au vocabulaire initial."""
+        getter = getattr(self._repository, "get_distinct_metadata_values", None)
+        existing = getter() if getter is not None else {}
+        return {
+            field: merge_reference_values(field, existing.get(field, []))
+            for field in ("category", "department", "document_type")
+        }
 
     def get_document(self, document_id: str) -> dict | None:
         """Retourne les métadonnées d'un document."""

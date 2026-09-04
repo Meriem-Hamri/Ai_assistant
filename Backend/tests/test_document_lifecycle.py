@@ -203,6 +203,25 @@ def test_upload_route_accepts_ocr_language():
     assert service.ocr_language == "ar"
 
 
+def test_metadata_options_route_returns_controlled_vocabulary():
+    class CatalogService:
+        def get_metadata_options(self):
+            return {
+                "category": ["Finance", "Cyberdéfense"],
+                "department": ["Informatique"],
+                "document_type": ["Rapport"],
+            }
+
+    app.dependency_overrides[get_document_service] = lambda: CatalogService()
+    try:
+        response = TestClient(app).get("/documents/metadata-options")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["category"] == ["Finance", "Cyberdéfense"]
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     ("tags", "expected"),

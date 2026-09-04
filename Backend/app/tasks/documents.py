@@ -6,6 +6,7 @@ from app.container import (
     get_document_repository,
 )
 from app.documents.paths import resolve_document_path
+from app.metadata.catalog import merge_reference_values
 
 
 logger = logging.getLogger(__name__)
@@ -66,12 +67,19 @@ def process_document(document_id: str) -> None:
         manual_tags_provided = document.tags is not None
 
         processor = create_document_processor()
+        get_values = getattr(repository, "get_distinct_metadata_values", None)
+        existing_values = get_values() if get_values is not None else {}
+        reference_values = {
+            field: merge_reference_values(field, existing_values.get(field, []))
+            for field in ("category", "department", "document_type")
+        }
         result = processor.process(
             file_path=file_path,
             document_id=document.id,
             filename=document.filename,
             manual_metadata=manual_metadata,
             manual_tags_provided=manual_tags_provided,
+            reference_values=reference_values,
             ocr_language=document.ocr_language,
         )
 

@@ -1,5 +1,8 @@
 import { ConversationItem } from "./ConversationItem";
 import type { Conversation } from "@/types/conversation";
+import { useState } from "react";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { deleteConversation } from "@/lib/api/conversations";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -11,6 +14,7 @@ interface ConversationListProps {
   onSelectConversation: (conversationId: string) => void;
   isOpen: boolean;
   onToggleOpen: () => void;
+  onConversationsChanged: () => Promise<void>;
 }
 
 export function ConversationList({
@@ -23,7 +27,26 @@ export function ConversationList({
   onSelectConversation,
   isOpen,
   onToggleOpen,
+  onConversationsChanged,
 }: ConversationListProps) {
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (!pendingDelete || deleting) return;
+    try {
+      setDeleting(true); setDeleteError(null);
+      await deleteConversation(pendingDelete.id);
+      if (pendingDelete.id === selectedConversationId) onNewConversation();
+      await onConversationsChanged();
+      setPendingDelete(null);
+    } catch {
+      setDeleteError("La conversation n’a pas pu être supprimée.");
+    } finally {
+      setDeleting(false);
+    }
+  }
   return (
     <section
       className="conversation-library"
@@ -39,7 +62,7 @@ export function ConversationList({
           onClick={onToggleOpen}
         >
           <span aria-hidden="true">{isOpen ? "▼" : "▶"}</span>
-          <span>Conversations</span>
+          <span>Historique / Conversations</span>
         </button>
       </h2>
       <div className="sidebar-section-content" id="conversations-panel" hidden={!isOpen}>
@@ -69,11 +92,13 @@ export function ConversationList({
                 selected={conversation.id === selectedConversationId}
                 disabled={disabled}
                 onSelect={onSelectConversation}
+                onRequestDelete={() => { setDeleteError(null); setPendingDelete(conversation); }}
               />
             ))}
           </div>
         )}
       </div>
+      <ConfirmationModal open={pendingDelete !== null} title="Supprimer la conversation ?" description={`${pendingDelete?.title ?? "Cette conversation"} sera supprimée définitivement.`} submitting={deleting} error={deleteError} onCancel={() => { setPendingDelete(null); setDeleteError(null); }} onConfirm={() => void confirmDelete()} />
     </section>
   );
 }

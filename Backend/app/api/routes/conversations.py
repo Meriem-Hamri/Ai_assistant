@@ -103,3 +103,13 @@ def get_conversation_messages(
         )
         for message in messages
     ]
+
+
+@router.delete("/{conversation_id}")
+def delete_conversation(
+    conversation_id: str,
+    service: ConversationService = Depends(get_conversation_service),
+):
+    if not service.delete_conversation(conversation_id):
+        raise HTTPException(status_code=404, detail="Conversation introuvable.")
+    return {"message": "Conversation supprimée avec succès."}
