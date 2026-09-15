@@ -192,3 +192,30 @@ def test_chunk_index():
 
     for index, chunk in enumerate(chunks):
         assert chunk.chunk_index == index
+
+
+def test_arabic_paragraphs_are_preserved_and_respect_max_size():
+    text = ("هذه فقرة عربية تحتوي على معلومات مهمة دون فقدان الكلمات " * 12).strip()
+    document = Document(
+        filename="arabic.pdf",
+        pages=[DocumentPage(page_number=1, text=text)],
+    )
+
+    chunks = NaturalChunker(min_chunk_size=40, max_chunk_size=120).chunk(document)
+
+    assert chunks
+    assert all(0 < len(chunk.text) <= 120 for chunk in chunks)
+    assert "هذه فقرة عربية" in " ".join(chunk.text for chunk in chunks)
+
+
+def test_arabic_question_mark_is_used_as_sentence_boundary():
+    first = "هل هذه هي الفقرة الأولى؟"
+    second = "هذه هي الفقرة الثانية وتحتوي على تفاصيل إضافية."
+    document = Document(
+        filename="arabic.pdf",
+        pages=[DocumentPage(page_number=1, text=f"{first} {second}")],
+    )
+
+    chunks = NaturalChunker(min_chunk_size=1, max_chunk_size=len(second)).chunk(document)
+
+    assert [chunk.text for chunk in chunks] == [first, second]

@@ -1,12 +1,16 @@
 from pathlib import Path
 
-from app.extraction.ocr_reader import ocr
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
+from app.extraction.ocr_router import extract_text_from_image as extract_ocr_text
 from app.models.document import Document, DocumentPage
 
 
-def extract_text_from_image(file_path: str) -> Document:
+def extract_text_from_image(
+    file_path: str,
+    ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE,
+) -> Document:
     """
-    Extrait le texte d'une image grâce à PaddleOCR.
+    Extrait le texte d'une image avec le moteur OCR sélectionné.
     """
 
     path = Path(file_path)
@@ -17,16 +21,7 @@ def extract_text_from_image(file_path: str) -> Document:
         )
 
     try:
-        results = ocr.predict(str(path))
-
-        extracted_text = []
-
-        for result in results:
-            texts = result["rec_texts"]
-
-            extracted_text.extend(texts)
-
-        text = "\n".join(extracted_text)
+        text = extract_ocr_text(str(path), ocr_language)
 
         document = Document(
             filename=path.name

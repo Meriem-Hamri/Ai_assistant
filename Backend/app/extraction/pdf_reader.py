@@ -3,10 +3,20 @@ import fitz  # PyMuPDF
 from pathlib import Path
 
 from app.models.document import Document, DocumentPage
-from app.extraction.ocr_reader import extract_text_from_image
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
+from app.extraction.ocr_router import extract_text_from_image
 
 
-def extract_text_from_pdf(file_path: str) -> Document:
+def _ocr_dpi(ocr_language: OcrLanguage) -> int:
+    """Augmente uniquement la résolution du chemin Paddle français."""
+
+    return 250 if ocr_language == "fr" else 200
+
+
+def extract_text_from_pdf(
+    file_path: str,
+    ocr_language: OcrLanguage = DEFAULT_OCR_LANGUAGE,
+) -> Document:
     """
     Extrait le texte d'un PDF.
 
@@ -73,7 +83,7 @@ def extract_text_from_pdf(file_path: str) -> Document:
                 # Cela permet de traiter correctement
                 # les pages mixtes texte + images.
                 pixmap = page.get_pixmap(
-                    dpi=200
+                    dpi=_ocr_dpi(ocr_language)
                 )
 
                 ocr_image_path = (
@@ -111,7 +121,8 @@ def extract_text_from_pdf(file_path: str) -> Document:
                         #         ocr_document.pages[0].text.strip()
                         #     )
                         ocr_text = extract_text_from_image(
-                            str(ocr_image_path)
+                            str(ocr_image_path),
+                            ocr_language,
                         )
 
                         if ocr_text:

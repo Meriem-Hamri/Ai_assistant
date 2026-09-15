@@ -68,8 +68,8 @@ def test_process_runs_pipeline_and_preserves_automatic_tags(
     extracted_paths: list[str] = []
     cleaned_texts: list[str] = []
 
-    def fake_extract(file_path: str) -> Document:
-        extracted_paths.append(file_path)
+    def fake_extract(file_path: str, ocr_language: str) -> Document:
+        extracted_paths.append((file_path, ocr_language))
         return source_document
 
     def fake_clean(text: str) -> str:
@@ -89,9 +89,10 @@ def test_process_runs_pipeline_and_preserves_automatic_tags(
         filename="rapport-original.pdf",
         manual_metadata=manual_metadata(title="Titre manuel"),
         manual_tags_provided=False,
+        ocr_language="ar",
     )
 
-    assert extracted_paths == [str(file_path)]
+    assert extracted_paths == [(str(file_path), "ar")]
     assert cleaned_texts == ["  Première page  ", "  Deuxième page  "]
     assert metadata_extractor.texts == ["Première page\n\nDeuxième page"]
     assert indexer.documents == [source_document]
@@ -117,7 +118,7 @@ def test_process_runs_pipeline_and_preserves_automatic_tags(
 def test_process_uses_manual_tags_when_provided(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         "app.documents.processor.extract_document",
-        lambda _: Document(
+        lambda _, __: Document(
             filename="stored.pdf",
             pages=[DocumentPage(page_number=1, text="Texte")],
         ),
@@ -137,7 +138,7 @@ def test_process_uses_manual_tags_when_provided(monkeypatch, tmp_path: Path):
 
 
 def test_process_propagates_pipeline_exception(monkeypatch, tmp_path: Path):
-    def fail_extraction(_: str) -> Document:
+    def fail_extraction(_: str, __: str) -> Document:
         raise RuntimeError("échec extraction")
 
     monkeypatch.setattr("app.documents.processor.extract_document", fail_extraction)

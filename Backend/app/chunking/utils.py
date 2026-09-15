@@ -58,26 +58,37 @@ def split_large_paragraph(
         Liste de morceaux.
     """
 
-    words = paragraph.split()
-
-    chunks = []
-
+    # La ponctuation arabe est une frontière de phrase au même titre que ?.
+    sentences = re.split(r"(?<=[.!?؟])\s+", paragraph)
+    chunks: list[str] = []
     current = ""
 
-    for word in words:
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
 
-        candidate = (
-            word
-            if not current
-            else current + " " + word
-        )
-
-        if len(candidate) <= max_length:
-            current = candidate
-
-        else:
+        if len(sentence) <= max_length:
+            candidate = sentence if not current else f"{current} {sentence}"
+            if len(candidate) <= max_length:
+                current = candidate
+                continue
             chunks.append(current)
-            current = word
+            current = sentence
+            continue
+
+        if current:
+            chunks.append(current)
+            current = ""
+
+        for word in sentence.split():
+            candidate = word if not current else f"{current} {word}"
+            if len(candidate) <= max_length:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                current = word
 
     if current:
         chunks.append(current)

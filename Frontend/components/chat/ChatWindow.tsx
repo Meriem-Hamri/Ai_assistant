@@ -3,13 +3,15 @@ import { useEffect } from "react";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 import { PromptAttachments } from "./PromptAttachments";
+import { DocumentContextPicker } from "./DocumentContextPicker";
 import { useChat } from "@/hooks/useChat";
 import type { Conversation } from "@/types/conversation";
 import type { Document } from "@/types/document";
+import type { ViewerState } from "@/types/viewer";
 
-interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentIds: string[]; selectedDocuments: Document[]; availableDocuments: Document[]; onRemoveDocument: (documentId: string) => void; onConversationCreated: (conversation: Conversation) => void; onDocumentContextRestored: (documentIds: string[]) => void; onGeneratingChange: (isGenerating: boolean) => void; sidebarOpen: boolean; onOpenSidebar: () => void; }
+interface ChatWindowProps { selectedConversationId: string | null; selectedDocumentIds: string[]; selectedDocuments: Document[]; availableDocuments: Document[]; contextSelectionLabel: string | null; onToggleDocument: (documentId: string) => void; onSelectDocumentContext: (documentIds: string[], label?: string | null) => void; onConversationCreated: (conversation: Conversation) => void; onDocumentContextRestored: (documentIds: string[]) => void; onGeneratingChange: (isGenerating: boolean) => void; onOpenSource: (viewer: ViewerState) => void; sidebarOpen: boolean; onOpenSidebar: () => void; }
 
-export function ChatWindow({ selectedConversationId, selectedDocumentIds, selectedDocuments, availableDocuments, onRemoveDocument, onConversationCreated, onDocumentContextRestored, onGeneratingChange, sidebarOpen, onOpenSidebar }: ChatWindowProps) {
+export function ChatWindow({ selectedConversationId, selectedDocumentIds, selectedDocuments, availableDocuments, contextSelectionLabel, onToggleDocument, onSelectDocumentContext, onConversationCreated, onDocumentContextRestored, onGeneratingChange, onOpenSource, sidebarOpen, onOpenSidebar }: ChatWindowProps) {
   const { messages, isLoadingHistory, isGenerating, error, sendMessage } = useChat(selectedConversationId, onConversationCreated);
   useEffect(() => {
     if (
@@ -65,19 +67,21 @@ export function ChatWindow({ selectedConversationId, selectedDocumentIds, select
           </svg>
         </button>
       )}
-      <div className="chat-context" title={contextName}><span className="scope-indicator" aria-hidden="true" /><span>Contexte : {contextName}</span></div>
+      <div className="chat-heading"><span>Analyse documentaire</span><strong>{selectedConversationId ? "Conversation active" : "Nouvelle conversation"}</strong></div>
+      <DocumentContextPicker documents={availableDocuments} selectedDocumentIds={selectedDocumentIds} disabled={isGenerating} onToggleDocument={onToggleDocument} onSelectDocuments={onSelectDocumentContext} />
     </header>
     {isLoadingHistory ? (
       <div className="chat-history-loading" role="status">Chargement de la conversation...</div>
     ) : (
-      <MessageList messages={messages} documents={availableDocuments} isGenerating={isGenerating} selectedDocumentName={contextName} />
+      <MessageList messages={messages} documents={availableDocuments} isGenerating={isGenerating} selectedDocumentName={contextName} onOpenSource={onOpenSource} />
     )}
     {error && <p className="chat-error" role="alert">{error}</p>}
     <div className="composer-area">
       <PromptAttachments
         documents={selectedDocuments}
+        selectionLabel={contextSelectionLabel}
         disabled={isGenerating}
-        onRemoveDocument={onRemoveDocument}
+        onRemoveDocument={onToggleDocument}
       />
       <ChatInput disabled={isLoadingHistory} isGenerating={isGenerating} onSend={handleSend} />
     </div>

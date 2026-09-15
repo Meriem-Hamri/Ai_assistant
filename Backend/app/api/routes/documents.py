@@ -12,7 +12,8 @@ from app.api.dependencies import (
     get_document_repository,
     get_vector_store,
 )
-from app.api.schemas.document import DocumentResponse
+from app.api.schemas.document import DocumentMetadataOptionsResponse, DocumentResponse
+from app.extraction.ocr_language import DEFAULT_OCR_LANGUAGE, OcrLanguage
 from app.documents.dispatcher import DocumentProcessingDispatcher
 from app.documents.repository import DocumentRepository
 from app.documents.service import (
@@ -60,6 +61,7 @@ async def upload_document(
     department: str | None = Form(None),
     document_type: str | None = Form(None),
     tags: list[str] | None = Form(None),
+    ocr_language: OcrLanguage = Form(DEFAULT_OCR_LANGUAGE),
     service: DocumentService = Depends(
         get_document_service
     ),
@@ -74,6 +76,7 @@ async def upload_document(
             department=department,
             document_type=document_type,
             tags=tags,
+            ocr_language=ocr_language,
         )
     except DocumentProcessingDispatchError as error:
         raise HTTPException(
@@ -92,6 +95,16 @@ def get_documents(
     ),
 ):
     return service.get_documents()
+
+
+@router.get(
+    "/metadata-options",
+    response_model=DocumentMetadataOptionsResponse,
+)
+def get_document_metadata_options(
+    service: DocumentService = Depends(get_document_service),
+):
+    return service.get_metadata_options()
 
 @router.get(
     "/{document_id}",

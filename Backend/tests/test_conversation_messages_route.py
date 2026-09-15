@@ -38,6 +38,7 @@ class FakeConversationService:
 
     def delete_conversation(self, *args, **kwargs):
         self.mutation_calls.append(("delete", args, kwargs))
+        return self.conversation is not None
 
 
 class FakeMessageService:
@@ -253,3 +254,21 @@ def test_message_order_is_preserved_and_read_does_not_mutate():
     ]
     assert conversation_service.mutation_calls == []
     assert message_service.mutation_calls == []
+
+
+def test_delete_conversation_uses_existing_service():
+    conversation_service = FakeConversationService(make_conversation())
+    response = make_client(conversation_service, FakeMessageService()).delete(
+        f"/conversations/{CONVERSATION_ID}"
+    )
+    assert response.status_code == 200
+    assert conversation_service.mutation_calls == [
+        ("delete", (CONVERSATION_ID,), {})
+    ]
+
+
+def test_delete_missing_conversation_returns_404():
+    response = make_client(
+        FakeConversationService(None), FakeMessageService()
+    ).delete(f"/conversations/{MISSING_CONVERSATION_ID}")
+    assert response.status_code == 404

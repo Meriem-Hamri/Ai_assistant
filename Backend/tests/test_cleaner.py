@@ -27,3 +27,9 @@ def test_ocr_cleaner():
 def test_full_cleaner():
     text = "â€œinforma-\ntionâ€"
     assert clean_document(text) == '"information"'
+
+
+def test_full_cleaner_preserves_arabic_letters_and_diacritics():
+    text = "  مَرْحَبًا   بالعالم؟  "
+
+    assert clean_document(text) == "مَرْحَبًا بالعالم؟"

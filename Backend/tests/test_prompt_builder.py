@@ -7,6 +7,7 @@ from app.prompting.prompt_builder import (
     PromptBuilder,
 )
 from app.vectorstore.search_result import SearchResult
+from app.prompting.language import ARABIC_FALLBACK, FRENCH_FALLBACK
 
 
 def create_result(
@@ -321,3 +322,42 @@ def test_prompt_allows_grounded_comparison_and_forbids_external_facts():
     assert "n'invente aucune information" in prompt
     assert "aucune relation qui n'est pas soutenue" in prompt
     assert "ne permet réellement pas une réponse fondée" in prompt
+
+
+def test_french_question_with_arabic_result_requests_french_answer():
+    prompt = PromptBuilder().build(
+        question="Quelle est la durée du contrat ?",
+        results=[create_result(text="مدة العقد ثلاثة أشهر.")],
+    )
+
+    assert "Réponds en français" in prompt
+    assert FRENCH_FALLBACK in prompt
+    assert "مدة العقد ثلاثة أشهر." in prompt
+
+
+def test_arabic_question_with_french_result_requests_arabic_answer():
+    prompt = PromptBuilder().build(
+        question="ما مدة العقد؟",
+        results=[create_result(text="Le contrat dure trois mois.")],
+    )
+
+    assert "Réponds en arabe" in prompt
+    assert ARABIC_FALLBACK in prompt
+    assert "Le contrat dure trois mois." in prompt
+
+
+def test_arabic_question_requires_exact_french_context_amount():
+    prompt = PromptBuilder().build(
+        question="ما هو الراتب الشهري؟",
+        results=[
+            create_result(
+                text="Le salaire mensuel brut est fixé à 9 500 dirhams."
+            )
+        ],
+    )
+
+    assert "9 500 dirhams" in prompt
+    assert "recopie exactement tous les chiffres" in prompt
+    assert "le séparateur et l'unité" in prompt
+    assert "FIDÉLITÉ NUMÉRIQUE OBLIGATOIRE" in prompt
+    assert prompt.rindex("9 500") < prompt.index("RÉPONSE")

@@ -27,3 +27,7 @@ export async function getConversationMessages(
     `/conversations/${encodeURIComponent(conversationId)}/messages`
   );
 }
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await apiFetch<void>(`/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });
+}

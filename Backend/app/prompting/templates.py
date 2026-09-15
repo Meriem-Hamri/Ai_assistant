@@ -38,5 +38,7 @@ PROMPT_TEMPLATE = """{system_instruction}
 
 {question}
 
+{numeric_fidelity_instruction}
+
 {answer_header}
 """

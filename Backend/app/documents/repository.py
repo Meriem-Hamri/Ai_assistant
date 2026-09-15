@@ -44,6 +44,7 @@ class DocumentRepository:
             tags=metadata.get("tags"),
             page_count=metadata.get("page_count"),
             chunk_count=metadata.get("chunk_count"),
+            ocr_language=metadata.get("ocr_language", "fr"),
         )
 
         if metadata.get("created_at") is not None:
@@ -68,6 +69,24 @@ class DocumentRepository:
                 )
             ).all()
             return [self._to_dict(document) for document in documents]
+
+    def get_distinct_metadata_values(self) -> dict[str, list[str]]:
+        """Retourne les valeurs métier réellement utilisées, sans taxonomie séparée."""
+        fields = {
+            "category": DocumentModel.category,
+            "department": DocumentModel.department,
+            "document_type": DocumentModel.document_type,
+        }
+        with SessionLocal() as session:
+            return {
+                name: list(session.scalars(
+                    select(column)
+                    .where(column.is_not(None))
+                    .distinct()
+                    .order_by(column)
+                ).all())
+                for name, column in fields.items()
+            }
 
     def get_by_id(self, document_id: str) -> dict | None:
         """Retourne un document à partir de son identifiant."""
@@ -130,6 +149,7 @@ class DocumentRepository:
                 department=document.department,
                 document_type=document.document_type,
                 tags=document.tags,
+                ocr_language=document.ocr_language,
             )
 
     def update(self, document_id: str, updates: dict) -> bool:
@@ -203,6 +223,7 @@ class DocumentRepository:
             "tags": document.tags or [],
             "page_count": document.page_count,
             "chunk_count": document.chunk_count,
+            "ocr_language": document.ocr_language,
             "created_at": document.created_at,
             "updated_at": document.updated_at,
         }

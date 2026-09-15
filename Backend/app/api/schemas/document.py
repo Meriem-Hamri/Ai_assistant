@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.extraction.ocr_language import OcrLanguage
+
 
 class DocumentResponse(BaseModel):
     id: str
@@ -20,3 +22,10 @@ class DocumentResponse(BaseModel):
     department: str | None = None
     document_type: str | None = None
     tags: list[str] = Field(default_factory=list)
+    ocr_language: OcrLanguage = "fr"
+
+
+class DocumentMetadataOptionsResponse(BaseModel):
+    category: list[str]
+    department: list[str]
+    document_type: list[str]
